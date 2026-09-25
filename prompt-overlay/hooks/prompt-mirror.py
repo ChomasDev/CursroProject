@@ -229,7 +229,20 @@ def interpreter() -> str:
     return sys.executable
 
 
+SWIFT_APP = Path.home() / "Applications" / "AiAndo.app"
+
+
 def ensure_overlay() -> None:
+    if SWIFT_APP.exists():
+        # `open -g` is a no-op if already running and never steals focus from Cursor.
+        subprocess.Popen(
+            ["open", "-g", str(SWIFT_APP)],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return
     pid_path = ROOT / "overlay.pid"
     try:
         if pid_path.exists():
