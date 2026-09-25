@@ -104,15 +104,11 @@ final class Coordinator {
         }
     }
 
-    /// Summary only when both the Cursor agent and the roast are done.
+    /// The UI switches to `.summary` itself once its slow playback has caught up;
+    /// here we only freeze the final numbers.
     private func maybeFinish() {
-        guard model.agentFinished, model.roastFinished, model.phase != .idle, model.phase != .summary else { return }
-        Task { [weak self] in
-            // Let the last card breathe before switching to the chart.
-            try? await Task.sleep(for: .seconds(1.5))
-            guard let self, self.model.phase == .roasting || self.model.phase == .intro else { return }
-            self.model.phase = .summary
-        }
+        guard model.agentFinished, model.roastFinished else { return }
+        model.summary = tracker.summary()
     }
 
     private func close() {

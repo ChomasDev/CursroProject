@@ -5,14 +5,20 @@ import Foundation
 enum UIDemo {
     private static var current: Task<Void, Never>?
 
-    /// Plays: reset → intro → roasting (stats, deltas, phrases, agent activity) → agentFinished → summary.
+    /// Plays: reset → intro → roasting (stats, deltas, phrases, agent activity) → agentFinished + done.
+    /// The UI itself moves to `.summary` once its beat playback has caught up.
     /// `speed` > 1 makes it faster (e.g. 2 = twice as fast). `loop` replays forever.
     static func run(model: OverlayModel, speed: Double = 1, loop: Bool = false) {
         current?.cancel()
         current = Task { @MainActor in
             repeat {
                 await play(model: model, speed: max(0.1, speed))
-                if loop { await sleep(6, speed) }
+                if loop {
+                    while !Task.isCancelled, model.phase != .summary, model.phase != .idle {
+                        await sleep(0.5, 1)
+                    }
+                    await sleep(10, 1)
+                }
             } while loop && !Task.isCancelled
         }
     }
@@ -62,10 +68,11 @@ enum UIDemo {
         )
         model.reset(for: session)
         model.activity = "Sta pensando…"
-        await sleep(3.4, speed)
+        await sleep(2.6, speed)
         guard !Task.isCancelled else { return }
 
-        model.phase = .roasting
+        // Like the Coordinator: intro → roasting after a fixed delay (the UI keeps playing its intro beats).
+        if model.phase == .intro { model.phase = .roasting }
         await sleep(0.8, speed)
 
         model.apply(.stats(RoastStats(
@@ -110,7 +117,6 @@ enum UIDemo {
             tickActivity()
             await sleep(0.4, speed)
         }
-        model.apply(.done)
         guard !Task.isCancelled else { return }
 
         let total = Date().timeIntervalSince(session.startedAt)
@@ -122,9 +128,7 @@ enum UIDemo {
         )
         model.agentFinished = true
         model.activity = ""
-        await sleep(2.2, speed)
-        guard !Task.isCancelled else { return }
-        model.phase = .summary
+        model.apply(.done)
     }
 
     /// Streams text in 1–3 word chunks, like a token stream.

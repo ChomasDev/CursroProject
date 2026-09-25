@@ -1,97 +1,121 @@
 import Charts
 import SwiftUI
 
-/// Final "Ai-Ando wrapped" dashboard.
+/// Final "Ai-Ando wrapped": one centered glass card that fits without scrolling.
 struct SummaryView: View {
+    let model: OverlayModel
+    @State private var cardShown = false
+
+    var body: some View {
+        ZStack {
+            // Slight dim; clicking outside the card closes the overlay.
+            Color.black.opacity(0.28)
+                .contentShape(Rectangle())
+                .onTapGesture { model.dismiss() }
+
+            SummaryCard(model: model)
+                .blur(radius: cardShown ? 0 : 20)
+                .opacity(cardShown ? 1 : 0)
+                .scaleEffect(cardShown ? 1 : 0.96)
+                .offset(y: cardShown ? 0 : 16)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            withAnimation(.spring(response: 1.1, dampingFraction: 0.9).delay(0.15)) { cardShown = true }
+        }
+    }
+}
+
+private struct SummaryCard: View {
     let model: OverlayModel
 
     var body: some View {
         let stats = model.stats
         let summary = model.summary
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ai-Ando")
-                        .font(.system(size: 40, weight: .semibold))
-                        .foregroundStyle(.white)
-                    + Text(" wrapped")
-                        .font(.system(size: 40, weight: .regular, design: .serif).italic())
-                        .foregroundStyle(AA.hot)
-                    Text("Ecco quanto hai lavorato tu (poco) e quanto ha lavorato l'AI (tanto).")
-                        .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                .staggered(0)
+        VStack(alignment: .leading, spacing: 26) {
+            // Title
+            VStack(alignment: .leading, spacing: 6) {
+                (Text("Ai-Ando ")
+                    .font(.system(size: 38, weight: .semibold))
+                    .foregroundColor(.white)
+                 + Text("wrapped")
+                    .font(.system(size: 38, weight: .regular, design: .serif).italic())
+                    .foregroundColor(Color(red: 0.55, green: 1.0, blue: 0.78)))
+                Text("Tu hai scritto un prompt. L'AI ha fatto il resto.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .staggered(0, step: 0.22, base: 0.45)
 
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    StatTile(
-                        title: "Tempo Ai-Ando", value: summary.totalSeconds, format: { Fmt.seconds($0) },
-                        caption: "l'AI ha sgobbato, tu no", gradient: AA.cool
-                    ).staggered(1)
-                    StatTile(
-                        title: "Tool usati", value: Double(summary.toolCount), format: { Fmt.int($0) },
-                        caption: toolCaption(summary), gradient: LinearGradient(
-                            colors: [AA.mint, AA.cyan], startPoint: .leading, endPoint: .trailing)
-                    ).staggered(2)
-                    StatTile(
-                        title: "Rubati al capo", value: stats?.euroPerDay, format: { Fmt.euro($0) },
-                        caption: stats.map { "al giorno · \(Fmt.euro($0.euroPerMonth)) al mese" } ?? "in attesa dei numeri",
-                        gradient: AA.hot
-                    ).staggered(3)
-                    StatTile(
-                        title: "Classifica", value: stats.map { Double($0.leaderboardRank) },
-                        format: { "#" + Fmt.int($0) },
-                        caption: stats.map { "su \(Fmt.int(Double($0.leaderboardTotal)))" } ?? "in attesa dei numeri",
-                        gradient: LinearGradient(colors: [AA.orange, AA.pink], startPoint: .leading, endPoint: .trailing)
-                    ).staggered(4)
-                }
+            // Three big numbers
+            HStack(alignment: .top, spacing: 0) {
+                BigStat(
+                    value: summary.totalSeconds, format: { Fmt.seconds($0) },
+                    caption: "di Ai-Ando"
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .staggered(1, step: 0.22, base: 0.45)
+                BigStat(
+                    value: stats?.euroPerDay, format: { Fmt.euro($0) },
+                    caption: stats.map { "rubati al giorno · \(Fmt.euro($0.euroPerMonth))/mese" } ?? "rubati al giorno"
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .staggered(2, step: 0.22, base: 0.45)
+                BigStat(
+                    value: stats.map { Double($0.leaderboardRank) }, format: { "#" + Fmt.int($0) },
+                    caption: stats.map { "su \(Fmt.int(Double($0.leaderboardTotal))) in classifica" } ?? "in classifica"
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .staggered(3, step: 0.22, base: 0.45)
+            }
 
-                TimeSplitCard(summary: summary)
-                    .staggered(5)
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                .staggered(4, step: 0.22, base: 0.45)
 
-                if let stats, !stats.leaderboard.isEmpty {
-                    LeaderboardCard(entries: stats.leaderboard, rank: stats.leaderboardRank)
-                        .staggered(6)
-                }
+            if let stats, !stats.leaderboard.isEmpty {
+                Leaderboard(entries: stats.leaderboard, rank: stats.leaderboardRank)
+                    .staggered(4, step: 0.22, base: 0.45)
+            }
 
+            TimeSplitBar(summary: summary)
+                .staggered(5, step: 0.22, base: 0.45)
+
+            HStack {
+                Text("Esc per chiudere")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.35))
+                Spacer()
                 Button {
                     model.dismiss()
                 } label: {
                     Text("Chiudi")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(AA.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 46)
+                        .padding(.horizontal, 26)
+                        .frame(height: 38)
                         .background(Capsule().fill(Color.white))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(PressableStyle())
-                .keyboardShortcut(.cancelAction)
-                .staggered(7)
-                .padding(.top, 4)
+                .focusable(false)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 4)
-            .padding(.bottom, 22)
+            .staggered(6, step: 0.22, base: 0.45)
         }
-        .mask {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.03),
-                    .init(color: .black, location: 0.97),
-                    .init(color: .clear, location: 1),
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
-        }
-    }
-
-    private func toolCaption(_ s: SessionSummary) -> String {
-        if let top = s.toolUsage.max(by: { $0.value < $1.value }) {
-            return s.failedToolCount > 0 ? "top: \(top.key) · \(s.failedToolCount) falliti" : "top: \(top.key)"
-        }
-        return s.failedToolCount > 0 ? "\(s.failedToolCount) falliti" : "manco un tool, pigro"
+        .padding(34)
+        .frame(width: 660)
+        .background(BehindWindowBlur(radius: 28))
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.black.opacity(0.22))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: .black.opacity(0.35), radius: 40, y: 20)
+        .contentShape(Rectangle())
+        .onTapGesture {} // swallow taps so the backdrop doesn't dismiss
     }
 }
 
@@ -104,128 +128,45 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-private struct StatTile: View {
-    let title: String
+private struct BigStat: View {
     let value: Double?
     let format: (Double) -> String
     let caption: String
-    let gradient: LinearGradient
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 10.5, weight: .semibold))
-                .tracking(1.3)
-                .foregroundStyle(.white.opacity(0.55))
             Group {
                 if let value {
-                    CountingNumber(value: value, format: format, duration: 1.4)
+                    CountingNumber(value: value, format: format, duration: 1.6)
                 } else {
                     Text("—")
                 }
             }
-            .font(AA.rounded(30, .heavy))
-            .foregroundStyle(gradient)
+            .font(AA.rounded(40, .bold))
+            .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             Text(caption)
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 10)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
-        .glassCard(radius: 18)
     }
 }
 
-private struct TimeSlice: Identifiable {
-    let id: String
-    let seconds: Double
-    let color: Color
-}
-
-private struct TimeSplitCard: View {
-    let summary: SessionSummary
-    @State private var appeared = false
-
-    private var slices: [TimeSlice] {
-        [
-            TimeSlice(id: "Pensa", seconds: summary.thinkingSeconds, color: AA.violet),
-            TimeSlice(id: "Tool", seconds: summary.toolSeconds, color: AA.cyan),
-            TimeSlice(id: "Risponde", seconds: summary.respondingSeconds, color: AA.pink),
-        ]
-    }
-
+private struct SectionLabel: View {
+    let text: String
     var body: some View {
-        let total = slices.reduce(0) { $0 + $1.seconds }
-        VStack(alignment: .leading, spacing: 12) {
-            CardHeader(emoji: "⏱️", title: "Dove è finito il tempo")
-            HStack(spacing: 22) {
-                ZStack {
-                    if total > 0 {
-                        Chart(slices) { slice in
-                            SectorMark(
-                                angle: .value("Secondi", slice.seconds),
-                                innerRadius: .ratio(0.64),
-                                angularInset: 2.5
-                            )
-                            .cornerRadius(5)
-                            .foregroundStyle(slice.color.gradient)
-                        }
-                        .chartLegend(.hidden)
-                    } else {
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 18)
-                    }
-                    VStack(spacing: 0) {
-                        Text(Fmt.seconds(summary.totalSeconds > 0 ? summary.totalSeconds : total))
-                            .font(AA.rounded(20, .heavy))
-                            .foregroundStyle(.white)
-                        Text("totale")
-                            .font(.system(size: 10.5, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
-                .frame(width: 140, height: 140)
-                .rotationEffect(.degrees(appeared ? 0 : -90))
-                .scaleEffect(appeared ? 1 : 0.6)
-                .opacity(appeared ? 1 : 0)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(slices) { slice in
-                        HStack(spacing: 10) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(slice.color)
-                                .frame(width: 10, height: 10)
-                            Text(slice.id)
-                                .font(.system(size: 13.5, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.8))
-                            Spacer(minLength: 4)
-                            Text(total > 0 ? "\(Int((slice.seconds / total * 100).rounded()))%" : "–")
-                                .font(AA.rounded(14, .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    Text("\(summary.thoughtCount) pensieri · \(summary.toolCount) tool · \(Fmt.int(Double(summary.responseCharacters))) caratteri")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(tint: AA.violet)
-        .onAppear {
-            withAnimation(.spring(response: 1.1, dampingFraction: 0.75).delay(0.55)) { appeared = true }
-        }
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(2.2)
+            .foregroundStyle(.white.opacity(0.45))
     }
 }
 
-private struct LeaderboardCard: View {
+private struct Leaderboard: View {
     let entries: [LeaderboardEntry]
     let rank: Int
     @State private var progress: Double = 0
@@ -239,65 +180,103 @@ private struct LeaderboardCard: View {
         return top
     }
 
+    private func name(_ e: LeaderboardEntry) -> String { e.isMe ? "tu · #\(rank)" : e.name }
+
     var body: some View {
         let rows = self.rows
         let maxTokens = Double(rows.map(\.tokens).max() ?? 1)
         VStack(alignment: .leading, spacing: 12) {
-            CardHeader(emoji: "🏆", title: "Classifica Ai-Ando")
+            SectionLabel(text: "Classifica Ai-Ando · token")
             Chart(rows) { entry in
                 BarMark(
                     x: .value("Token", Double(entry.tokens) * progress),
-                    y: .value("Nome", entry.isMe ? "Tu (#\(rank))" : entry.name),
-                    height: .ratio(0.62)
+                    y: .value("Nome", name(entry)),
+                    height: .fixed(12)
                 )
-                .cornerRadius(7)
+                .cornerRadius(6)
                 .foregroundStyle(
                     entry.isMe
-                        ? AnyShapeStyle(LinearGradient(colors: [AA.pink, AA.orange], startPoint: .leading, endPoint: .trailing))
+                        ? AnyShapeStyle(AA.accent)
                         : AnyShapeStyle(Color.white.opacity(0.22))
                 )
-                .annotation(position: .trailing, spacing: 6) {
+                .annotation(position: .trailing, spacing: 8) {
                     Text(Fmt.int(Double(entry.tokens)))
-                        .font(AA.rounded(11, .semibold))
-                        .foregroundStyle(entry.isMe ? AnyShapeStyle(AA.orange) : AnyShapeStyle(Color.white.opacity(0.55)))
+                        .font(AA.rounded(11.5, .semibold))
+                        .foregroundStyle(entry.isMe ? Color.white : Color.white.opacity(0.5))
                         .opacity(progress)
                 }
             }
-            .chartXScale(domain: 0...(maxTokens * 1.22))
+            .chartXScale(domain: 0...(maxTokens * 1.2))
             .chartXAxis(.hidden)
             .chartYAxis {
-                AxisMarks { value in
+                AxisMarks(position: .leading) { value in
                     AxisValueLabel {
-                        if let name = value.as(String.self) {
-                            Text(name)
-                                .font(.system(size: 12, weight: name.hasPrefix("Tu") ? .bold : .medium))
-                                .foregroundStyle(name.hasPrefix("Tu") ? Color.white : Color.white.opacity(0.65))
+                        if let n = value.as(String.self) {
+                            Text(n)
+                                .font(.system(size: 12.5, weight: n.hasPrefix("tu") ? .bold : .medium))
+                                .foregroundStyle(n.hasPrefix("tu") ? Color.white : Color.white.opacity(0.6))
                         }
                     }
                 }
             }
-            .frame(height: CGFloat(rows.count) * 34)
+            .frame(height: CGFloat(rows.count) * 28)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(tint: AA.orange)
         .onAppear {
-            withAnimation(.spring(response: 1.2, dampingFraction: 0.8).delay(0.8)) { progress = 1 }
+            withAnimation(.spring(response: 1.6, dampingFraction: 0.85).delay(1.5)) { progress = 1 }
         }
     }
 }
 
-private struct CardHeader: View {
-    let emoji: String
-    let title: String
+private struct TimeSplitBar: View {
+    let summary: SessionSummary
+    @State private var progress: CGFloat = 0
+
+    private var slices: [(String, Double, Color)] {
+        [
+            ("pensa", summary.thinkingSeconds, AA.violet),
+            ("usa tool", summary.toolSeconds, AA.cyan),
+            ("risponde", summary.respondingSeconds, AA.pink),
+        ]
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(emoji).font(.system(size: 15))
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(1.4)
-                .foregroundStyle(.white.opacity(0.65))
+        let total = slices.reduce(0) { $0 + $1.1 }
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel(text: "Dove è finito il tempo dell'AI")
+            GeometryReader { geo in
+                HStack(spacing: 3) {
+                    if total > 0 {
+                        ForEach(slices, id: \.0) { slice in
+                            Capsule()
+                                .fill(slice.2)
+                                .frame(width: max(0, (geo.size.width - 6) * CGFloat(slice.1 / total) * progress))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
+            }
+            .frame(height: 8)
+            HStack(spacing: 22) {
+                ForEach(slices, id: \.0) { slice in
+                    HStack(spacing: 7) {
+                        Circle().fill(slice.2).frame(width: 7, height: 7)
+                        Text(slice.0)
+                            .foregroundStyle(.white.opacity(0.6))
+                        Text(total > 0 ? "\(Int((slice.1 / total * 100).rounded()))%" : "–")
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+                    }
+                }
+                Spacer()
+                Text("\(summary.toolCount) tool · \(summary.thoughtCount) pensieri")
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            .font(.system(size: 12, weight: .medium))
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.4).delay(2.0)) { progress = 1 }
         }
     }
 }

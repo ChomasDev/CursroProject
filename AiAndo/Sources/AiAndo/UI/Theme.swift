@@ -17,6 +17,11 @@ enum AA {
     static var cool: LinearGradient {
         LinearGradient(colors: [cyan, violet], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
+    /// Single accent used for numbers in the beats (soft green → cyan).
+    static var accent: LinearGradient {
+        LinearGradient(colors: [Color(red: 0.55, green: 1.0, blue: 0.78), Color(red: 0.45, green: 0.90, blue: 1.0)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
     static var aurora: LinearGradient {
         LinearGradient(colors: [cyan, violet, pink, orange], startPoint: .leading, endPoint: .trailing)
     }
