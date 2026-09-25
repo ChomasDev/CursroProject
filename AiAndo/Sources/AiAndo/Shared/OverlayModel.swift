@@ -35,6 +35,9 @@ final class OverlayModel {
     var roastFinished = false
     var errorMessage: String?
 
+    /// TikTok caption while the pointer is thrashing on the overlay. Nil when calm.
+    var dizzyLine: String?
+
     /// Set by the UI close button / ESC.
     var onDismiss: (() -> Void)?
 
@@ -50,6 +53,7 @@ final class OverlayModel {
         agentFinished = false
         roastFinished = false
         errorMessage = nil
+        dizzyLine = nil
     }
 
     func apply(_ update: RoastUpdate) {

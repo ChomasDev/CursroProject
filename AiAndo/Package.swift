@@ -9,6 +9,11 @@ let package = Package(
             name: "AiAndo",
             path: "Sources/AiAndo",
             swiftSettings: [.swiftLanguageMode(.v5)]
-        )
+        ),
+        .testTarget(
+            name: "AiAndoTests",
+            dependencies: ["AiAndo"],
+            path: "Tests/AiAndoTests"
+        ),
     ]
 )

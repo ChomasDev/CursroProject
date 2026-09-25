@@ -27,11 +27,13 @@ final class OverlayPanelController {
     private let followsModelPhase: Bool
     private var localEsc: Any?
     private var globalEsc: Any?
+    private let frenzy: MouseFrenzyMonitor
     private(set) var isShown = false
 
     init(model: OverlayModel, followsModelPhase: Bool = true) {
         self.model = model
         self.followsModelPhase = followsModelPhase
+        self.frenzy = MouseFrenzyMonitor(model: model)
 
         let panel = OverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
@@ -89,6 +91,7 @@ final class OverlayPanelController {
 
     /// Shows the panel over the whole screen containing the mouse (no focus steal).
     func show() {
+        frenzy.start()
         panel.ignoresMouseEvents = model.phase != .summary
         guard !isShown else {
             panel.orderFrontRegardless()
@@ -109,6 +112,7 @@ final class OverlayPanelController {
     func hide() {
         guard isShown else { return }
         isShown = false
+        frenzy.stop()
         panel.ignoresMouseEvents = true
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.45

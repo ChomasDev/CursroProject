@@ -18,9 +18,16 @@ struct OverlayRootView: View {
                 SummaryView(model: model)
                     .transition(.opacity)
             }
+
+            if let line = model.dizzyLine {
+                DizzyCaption(text: line)
+                    .transition(.scale(scale: 0.82).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 1.0), value: model.phase == .summary)
+        .animation(.spring(response: 0.34, dampingFraction: 0.62), value: model.dizzyLine)
         .preferredColorScheme(.dark)
         .environment(\.colorScheme, .dark)
     }
