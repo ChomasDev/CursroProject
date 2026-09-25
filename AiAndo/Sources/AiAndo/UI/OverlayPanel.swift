@@ -132,6 +132,8 @@ final class OverlayPanelController {
 
         let hosting = NSHostingView(rootView: OverlayRootView(model: model))
         hosting.sizingOptions = []
+        // Cover the menu bar / notch strip too, not just the safe area below it.
+        hosting.safeAreaRegions = []
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = NSColor.clear.cgColor
         panel.contentView = hosting

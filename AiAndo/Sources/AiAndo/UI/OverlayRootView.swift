@@ -26,6 +26,7 @@ struct OverlayRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .animation(.easeInOut(duration: 1.0), value: model.phase == .summary)
         .animation(.spring(response: 0.34, dampingFraction: 0.62), value: model.dizzyLine)
         .preferredColorScheme(.dark)

@@ -13,6 +13,7 @@ struct SummaryView: View {
             Color.black.opacity(0.28)
                 .contentShape(Rectangle())
                 .onTapGesture { model.dismiss() }
+                .ignoresSafeArea()
 
             SummaryCard(model: model)
                 .blur(radius: cardShown ? 0 : 20)
