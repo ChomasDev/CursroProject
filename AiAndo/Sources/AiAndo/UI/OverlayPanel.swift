@@ -35,6 +35,7 @@ final class OverlayPanelController {
     private var localEsc: Any?
     private var globalEsc: Any?
     private let frenzy: MouseFrenzyMonitor
+    private var closeHotKey: OverlayHotKey?
     private(set) var isShown = false
 
     init(model: OverlayModel, followsModelPhase: Bool = true) {
@@ -70,6 +71,7 @@ final class OverlayPanelController {
         panel.contentView = hosting
 
         panel.onEscape = { [weak model] in model?.dismiss() }
+        closeHotKey = OverlayHotKey { [weak model] in model?.dismiss() }
 
         localEsc = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, OverlayPanel.closesOverlay(event), self.isShown else { return event }
@@ -99,6 +101,7 @@ final class OverlayPanelController {
     /// Shows the panel over the whole screen containing the mouse (no focus steal).
     func show() {
         frenzy.start()
+        closeHotKey?.register()
         panel.ignoresMouseEvents = model.phase != .summary
         guard !isShown else {
             panel.orderFrontRegardless()
@@ -120,6 +123,7 @@ final class OverlayPanelController {
         guard isShown else { return }
         isShown = false
         frenzy.stop()
+        closeHotKey?.unregister()
         panel.ignoresMouseEvents = true
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.45
