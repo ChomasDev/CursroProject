@@ -19,8 +19,72 @@ final class OverlayPanel: NSPanel {
     /// Esc, or Command+L.
     static func closesOverlay(_ event: NSEvent) -> Bool {
         if event.keyCode == 53 { return true }
+        return isCommandL(event)
+    }
+
+    static func isCommandL(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let isL = event.keyCode == 37 || event.charactersIgnoringModifiers?.lowercased() == "l"
-        return isL && event.modifierFlags.contains(.command)
+        return isL && flags.contains(.command)
+    }
+}
+
+/// NSEvent global monitors drop keydowns that include Command. This tap still sees them
+/// while Cursor keeps focus. Same Accessibility trust as the Escape monitor.
+private final class CmdLKeyTap: @unchecked Sendable {
+    weak var controller: OverlayPanelController?
+    private var port: CFMachPort?
+    private var source: CFRunLoopSource?
+
+    func start() {
+        guard port == nil else { return }
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        let info = Unmanaged.passUnretained(self).toOpaque()
+        guard let port = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: mask,
+            callback: { _, type, event, userInfo in
+                CmdLKeyTap.handle(type: type, event: event, userInfo: userInfo)
+            },
+            userInfo: info
+        ) else { return }
+        self.port = port
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
+        self.source = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: port, enable: true)
+    }
+
+    func stop() {
+        if let port { CGEvent.tapEnable(tap: port, enable: false) }
+        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
+        port = nil
+        source = nil
+    }
+
+    fileprivate static func handle(
+        type: CGEventType,
+        event: CGEvent,
+        userInfo: UnsafeMutableRawPointer?
+    ) -> Unmanaged<CGEvent>? {
+        guard let userInfo else { return Unmanaged.passUnretained(event) }
+        let tap = Unmanaged<CmdLKeyTap>.fromOpaque(userInfo).takeUnretainedValue()
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let port = tap.port { CGEvent.tapEnable(tap: port, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+        guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        guard keyCode == 37, event.flags.contains(.maskCommand) else {
+            return Unmanaged.passUnretained(event)
+        }
+        Task { @MainActor in
+            guard let controller = tap.controller, controller.isShown else { return }
+            controller.model.dismiss()
+        }
+        return Unmanaged.passUnretained(event)
     }
 }
 
@@ -34,6 +98,7 @@ final class OverlayPanelController {
     private let followsModelPhase: Bool
     private var localEsc: Any?
     private var globalEsc: Any?
+    private let cmdLTap = CmdLKeyTap()
     private let frenzy: MouseFrenzyMonitor
     private var closeHotKey: OverlayHotKey?
     private(set) var isShown = false
@@ -81,11 +146,15 @@ final class OverlayPanelController {
         // Works only if the app has Accessibility permission; harmless otherwise.
         globalEsc = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard OverlayPanel.closesOverlay(event) else { return }
+            let commandL = OverlayPanel.isCommandL(event)
             Task { @MainActor in
-                guard let self, self.isShown, self.model.phase == .summary else { return }
+                guard let self, self.isShown else { return }
+                guard commandL || self.model.phase == .summary else { return }
                 self.model.dismiss()
             }
         }
+        cmdLTap.controller = self
+        cmdLTap.start()
 
         if followsModelPhase {
             observePhase()
@@ -96,6 +165,7 @@ final class OverlayPanelController {
     deinit {
         if let localEsc { NSEvent.removeMonitor(localEsc) }
         if let globalEsc { NSEvent.removeMonitor(globalEsc) }
+        cmdLTap.stop()
     }
 
     /// Shows the panel over the whole screen containing the mouse (no focus steal).
