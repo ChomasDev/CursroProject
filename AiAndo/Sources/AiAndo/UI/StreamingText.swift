@@ -1,50 +1,40 @@
 import SwiftUI
 
-/// Text that animates in word by word (blur → sharp, fade, slight rise).
-/// When `text` grows (streaming deltas), only the newly appended words animate.
-struct StreamingText: View {
+/// Dia-style text: words appear one by one (blur → sharp, fade, slight rise), centered.
+/// Words containing digits (48.213, 3,62€, 1323°) get the accent gradient.
+struct WordRevealText: View {
     let text: String
-    var font: Font = .system(size: 18, weight: .medium)
-    var style: AnyShapeStyle = AnyShapeStyle(Color.white)
-    var wordSpacing: CGFloat = 5
-    var lineSpacing: CGFloat = 4
-    /// Delay between words that arrive in the same update.
-    var stagger: Double = 0.035
-    /// Initial delay before the first word.
-    var initialDelay: Double = 0
-
-    @State private var knownCount = 0
+    var font: Font = .system(size: 48, weight: .semibold)
+    var color: Color = .white
+    var highlightNumbers = true
+    var alignment: HorizontalAlignment = .center
+    var wordSpacing: CGFloat = 12
+    var lineSpacing: CGFloat = 6
+    /// Seconds between words.
+    var perWord: Double = 0.14
+    /// Delay before the first word.
+    var startDelay: Double = 0
 
     private var words: [String] {
         text.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init)
     }
 
     var body: some View {
-        let words = self.words
-        let known = knownCount
-        FlowLayout(spacing: wordSpacing, lineSpacing: lineSpacing) {
+        FlowLayout(spacing: wordSpacing, lineSpacing: lineSpacing, alignment: alignment) {
             ForEach(Array(words.enumerated()), id: \.offset) { index, word in
-                AnimatedWord(
+                RevealWord(
                     text: word,
                     font: font,
-                    style: style,
-                    delay: (known == 0 ? initialDelay : 0) + Double(max(0, index - known)) * stagger
+                    style: highlightNumbers && word.contains(where: \.isNumber)
+                        ? AnyShapeStyle(AA.accent) : AnyShapeStyle(color),
+                    delay: startDelay + Double(index) * perWord
                 )
             }
-        }
-        .onChange(of: words.count) {
-            // Let the new words pick up their delays first.
-            let count = words.count
-            DispatchQueue.main.async { knownCount = count }
-        }
-        .onAppear {
-            let count = words.count
-            DispatchQueue.main.async { knownCount = count }
         }
     }
 }
 
-private struct AnimatedWord: View {
+private struct RevealWord: View {
     let text: String
     let font: Font
     let style: AnyShapeStyle
@@ -56,59 +46,74 @@ private struct AnimatedWord: View {
             .font(font)
             .foregroundStyle(style)
             .fixedSize()
-            .blur(radius: shown ? 0 : 7)
+            .blur(radius: shown ? 0 : 12)
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 7)
+            .offset(y: shown ? 0 : 10)
             .onAppear {
-                withAnimation(.easeOut(duration: 0.55).delay(delay)) { shown = true }
+                withAnimation(.easeOut(duration: 0.8).delay(delay)) { shown = true }
             }
     }
 }
 
-/// Simple wrapping layout (left aligned).
+/// Wrapping layout with per-line alignment.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 5
     var lineSpacing: CGFloat = 4
+    var alignment: HorizontalAlignment = .leading
+
+    private struct Line {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func lines(maxWidth: CGFloat, subviews: Subviews) -> ([Line], [CGSize]) {
+        var lines: [Line] = [Line()]
+        var sizes: [CGSize] = []
+        for (i, sub) in subviews.enumerated() {
+            let size = sub.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            sizes.append(size)
+            let extra = lines[lines.count - 1].indices.isEmpty ? size.width : spacing + size.width
+            if !lines[lines.count - 1].indices.isEmpty, lines[lines.count - 1].width + extra > maxWidth {
+                lines.append(Line())
+            }
+            var line = lines[lines.count - 1]
+            line.width += line.indices.isEmpty ? size.width : spacing + size.width
+            line.height = max(line.height, size.height)
+            line.indices.append(i)
+            lines[lines.count - 1] = line
+        }
+        return (lines, sizes)
+    }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var lineHeight: CGFloat = 0
-        var widest: CGFloat = 0
-        for sub in subviews {
-            let size = sub.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-            if x > 0, x + size.width > maxWidth {
-                y += lineHeight + lineSpacing
-                x = 0
-                lineHeight = 0
-            }
-            x += size.width + spacing
-            widest = max(widest, x - spacing)
-            lineHeight = max(lineHeight, size.height)
-        }
-        let width = proposal.width.map { $0.isFinite ? $0 : widest } ?? widest
-        return CGSize(width: width, height: y + lineHeight)
+        let (lines, _) = lines(maxWidth: maxWidth, subviews: subviews)
+        let height = lines.reduce(0) { $0 + $1.height } + CGFloat(max(0, lines.count - 1)) * lineSpacing
+        let widest = lines.map(\.width).max() ?? 0
+        let width = (proposal.width.map { $0.isFinite ? $0 : widest }) ?? widest
+        return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let maxWidth = bounds.width
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var lineHeight: CGFloat = 0
-        for sub in subviews {
-            let size = sub.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-            if x > 0, x + size.width > maxWidth {
-                y += lineHeight + lineSpacing
-                x = 0
-                lineHeight = 0
+        let (lines, sizes) = lines(maxWidth: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for line in lines {
+            var x: CGFloat
+            switch alignment {
+            case .center: x = bounds.minX + (bounds.width - line.width) / 2
+            case .trailing: x = bounds.maxX - line.width
+            default: x = bounds.minX
             }
-            sub.place(
-                at: CGPoint(x: bounds.minX + x, y: bounds.minY + y),
-                proposal: ProposedViewSize(width: min(size.width, maxWidth), height: size.height)
-            )
-            x += size.width + spacing
-            lineHeight = max(lineHeight, size.height)
+            for i in line.indices {
+                let size = sizes[i]
+                subviews[i].place(
+                    at: CGPoint(x: x, y: y + (line.height - size.height) / 2),
+                    proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height)
+                )
+                x += size.width + spacing
+            }
+            y += line.height + lineSpacing
         }
     }
 }
