@@ -2,29 +2,67 @@ import AppKit
 import Charts
 import SwiftUI
 
-/// Final "Ai-Ando wrapped": one centered glass card that fits without scrolling.
+/// Final wrapped, printed like a thermal receipt that rises from the bottom.
 struct SummaryView: View {
     let model: OverlayModel
-    @State private var cardShown = false
+    @State private var risen = false
 
     var body: some View {
         ZStack {
-            // Slight dim; clicking outside the card closes the overlay.
             Color.black.opacity(0.28)
                 .contentShape(Rectangle())
                 .onTapGesture { model.dismiss() }
                 .ignoresSafeArea()
 
             SummaryCard(model: model)
-                .blur(radius: cardShown ? 0 : 20)
-                .opacity(cardShown ? 1 : 0)
-                .scaleEffect(cardShown ? 1 : 0.96)
-                .offset(y: cardShown ? 0 : 16)
+                .offset(y: risen ? 0 : 720)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            withAnimation(.spring(response: 1.1, dampingFraction: 0.9).delay(0.15)) { cardShown = true }
+            withAnimation(.spring(response: 0.85, dampingFraction: 0.86).delay(0.05)) { risen = true }
         }
+    }
+}
+
+private enum ReceiptPaper {
+    static let color = Color(red: 0.97, green: 0.94, blue: 0.86)
+}
+
+private struct ReceiptShape: Shape {
+    var tooth: CGFloat = 14
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - tooth))
+        var x = rect.maxX
+        var down = true
+        while x > rect.minX + 0.5 {
+            x = max(rect.minX, x - tooth)
+            let y = down ? rect.maxY : rect.maxY - tooth
+            path.addLine(to: CGPoint(x: x, y: y))
+            down.toggle()
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct ReceiptRule: View {
+    var body: some View {
+        Line()
+            .stroke(AA.ink.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+            .frame(height: 1)
+    }
+}
+
+private struct Line: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return path
     }
 }
 
@@ -35,20 +73,20 @@ private struct SummaryCard: View {
     var body: some View {
         let stats = model.stats
         let summary = model.summary
-        VStack(alignment: .leading, spacing: 26) {
-            // Title
-            VStack(alignment: .leading, spacing: 6) {
-                (Text("Ai-Ando ")
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundColor(.white)
-                 + Text("wrapped")
-                    .font(.system(size: 38, weight: .regular, design: .serif).italic())
-                    .foregroundColor(Color(red: 0.55, green: 1.0, blue: 0.78)))
-                Text("Tu hai scritto un prompt. L'AI ha fatto il resto.")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.55))
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(spacing: 4) {
+                Text("AI-ANDO")
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .tracking(6)
+                    .foregroundStyle(AA.ink)
+                Text("SCONTRINO DEL PROMPT")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .tracking(2.4)
+                    .foregroundStyle(AA.ink.opacity(0.55))
             }
-            .staggered(0, step: 0.22, base: 0.45)
+            .frame(maxWidth: .infinity)
+            .staggered(0, step: 0.22, base: 0.35)
+            ReceiptRule().staggered(0, step: 0.22, base: 0.4)
 
             // Three big numbers
             HStack(alignment: .top, spacing: 0) {
@@ -77,8 +115,7 @@ private struct SummaryCard: View {
                     .staggered(4, step: 0.22, base: 0.45)
             }
 
-            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-                .staggered(4, step: 0.22, base: 0.45)
+            ReceiptRule().staggered(4, step: 0.22, base: 0.45)
 
             if let stats, !stats.leaderboard.isEmpty {
                 Leaderboard(entries: stats.leaderboard, rank: stats.leaderboardRank)
@@ -88,10 +125,18 @@ private struct SummaryCard: View {
             TimeSplitBar(summary: summary)
                 .staggered(5, step: 0.22, base: 0.45)
 
+            Text("GRAZIE E ARRIVEDERCI")
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .tracking(1.6)
+                .foregroundStyle(AA.ink)
+                .frame(maxWidth: .infinity)
+                .staggered(6, step: 0.22, base: 0.45)
+            ReceiptRule().staggered(6, step: 0.22, base: 0.5)
+
             HStack {
                 Text("Esc per chiudere")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(AA.ink.opacity(0.4))
                 Spacer()
                 if let better = model.texts[.promptMigliore], !better.isEmpty {
                     Button {
@@ -100,11 +145,11 @@ private struct SummaryCard: View {
                         copied = true
                     } label: {
                         Text(copied ? "Copiato" : "Copia prompt")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 18)
-                            .frame(height: 38)
-                            .background(Capsule().strokeBorder(Color.white.opacity(0.28), lineWidth: 1))
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AA.ink)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(Capsule().strokeBorder(AA.ink.opacity(0.35), lineWidth: 1))
                             .contentShape(Capsule())
                     }
                     .buttonStyle(PressableStyle())
@@ -114,11 +159,11 @@ private struct SummaryCard: View {
                     model.dismiss()
                 } label: {
                     Text("Chiudi")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AA.ink)
-                        .padding(.horizontal, 26)
-                        .frame(height: 38)
-                        .background(Capsule().fill(Color.white))
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundStyle(ReceiptPaper.color)
+                        .padding(.horizontal, 22)
+                        .frame(height: 34)
+                        .background(Capsule().fill(AA.ink))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(PressableStyle())
@@ -126,19 +171,11 @@ private struct SummaryCard: View {
             }
             .staggered(6, step: 0.22, base: 0.45)
         }
-        .padding(34)
-        .frame(width: 660)
-        .background(BehindWindowBlur(radius: 28))
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.black.opacity(0.22))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 40, y: 20)
+        .padding(.init(top: 28, leading: 32, bottom: 36, trailing: 32))
+        .frame(width: 640)
+        .background(ReceiptPaper.color)
+        .clipShape(ReceiptShape())
+        .shadow(color: .black.opacity(0.28), radius: 28, y: 16)
         .contentShape(Rectangle())
         .onTapGesture {} // swallow taps so the backdrop doesn't dismiss
     }
@@ -186,12 +223,12 @@ private struct BigStat: View {
                 }
             }
             .font(AA.rounded(40, .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(AA.ink)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             Text(caption)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(AA.ink.opacity(0.5))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, 10)
@@ -205,7 +242,7 @@ private struct SectionLabel: View {
         Text(text.uppercased())
             .font(.system(size: 11, weight: .semibold))
             .tracking(2.2)
-            .foregroundStyle(.white.opacity(0.45))
+            .foregroundStyle(AA.ink.opacity(0.45))
     }
 }
 
@@ -240,12 +277,12 @@ private struct Leaderboard: View {
                 .foregroundStyle(
                     entry.isMe
                         ? AnyShapeStyle(AA.accent)
-                        : AnyShapeStyle(Color.white.opacity(0.22))
+                        : AnyShapeStyle(AA.ink.opacity(0.15))
                 )
                 .annotation(position: .trailing, spacing: 8) {
                     Text(Fmt.int(Double(entry.tokens)))
                         .font(AA.rounded(11.5, .semibold))
-                        .foregroundStyle(entry.isMe ? Color.white : Color.white.opacity(0.5))
+                        .foregroundStyle(entry.isMe ? AA.ink : AA.ink.opacity(0.45))
                         .opacity(progress)
                 }
             }
@@ -257,7 +294,7 @@ private struct Leaderboard: View {
                         if let n = value.as(String.self) {
                             Text(n)
                                 .font(.system(size: 12.5, weight: n.hasPrefix("tu") ? .bold : .medium))
-                                .foregroundStyle(n.hasPrefix("tu") ? Color.white : Color.white.opacity(0.6))
+                                .foregroundStyle(n.hasPrefix("tu") ? AA.ink : AA.ink.opacity(0.55))
                         }
                     }
                 }
@@ -298,7 +335,7 @@ private struct TimeSplitBar: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Capsule().fill(Color.white.opacity(0.08)))
+                .background(Capsule().fill(AA.ink.opacity(0.08)))
             }
             .frame(height: 8)
             HStack(spacing: 22) {
@@ -306,15 +343,15 @@ private struct TimeSplitBar: View {
                     HStack(spacing: 7) {
                         Circle().fill(slice.2).frame(width: 7, height: 7)
                         Text(slice.0)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(AA.ink.opacity(0.6))
                         Text(total > 0 ? "\(Int((slice.1 / total * 100).rounded()))%" : "–")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AA.ink)
                             .monospacedDigit()
                     }
                 }
                 Spacer()
                 Text("\(summary.toolCount) tool · \(summary.thoughtCount) pensieri")
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AA.ink.opacity(0.4))
             }
             .font(.system(size: 12, weight: .medium))
         }
