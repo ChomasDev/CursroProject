@@ -13,7 +13,13 @@ import type { AndoRoast } from "./claude.service";
 import { writeRoast } from "./claude.service";
 import { searchCitation } from "./perplexity.service";
 import { systemPrompt, userPrompt } from "./prompt.service";
-import { leaderboardFor, recordTurn, type LeaderboardRow, type TurnStats } from "./stats.service";
+import {
+  badgesFor,
+  leaderboardFor,
+  recordTurn,
+  type LeaderboardRow,
+  type TurnStats,
+} from "./stats.service";
 
 export type IngestResult =
   | { kind: "opened"; sessionId: string }
@@ -82,15 +88,19 @@ export function runTurn(session: Session): Promise<AndoRoast> {
   return job;
 }
 
-const LOCAL_USER = "tu";
-
-export function prepareTurn(prompt: string, tokenCount?: number): {
+export function prepareTurn(prompt: string, tokenCount: number | undefined, userId: string): {
   prompt: string;
   stats: TurnStats;
   leaderboard: LeaderboardRow[];
+  badges: string[];
 } {
-  const stats = recordTurn(LOCAL_USER, prompt, Date.now(), tokenCount);
-  return { prompt, stats, leaderboard: leaderboardFor(LOCAL_USER) };
+  const stats = recordTurn(userId, prompt, Date.now(), tokenCount);
+  return {
+    prompt,
+    stats,
+    leaderboard: leaderboardFor(userId),
+    badges: badgesFor(userId, prompt, stats.tokenCount),
+  };
 }
 
 export async function finishRoast(

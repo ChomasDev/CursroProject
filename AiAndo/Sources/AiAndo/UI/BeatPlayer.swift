@@ -39,7 +39,7 @@ final class BeatPlayer {
     /// Global pace multiplier (> 1 = faster). `AIANDO_PACE` env var, for testing.
     static let pace: Double = {
         if let s = ProcessInfo.processInfo.environment["AIANDO_PACE"], let v = Double(s), v > 0 { return v }
-        return 1
+        return 1.7
     }()
 
     private(set) var current: Beat?
@@ -152,11 +152,11 @@ final class BeatPlayer {
         withAnimation(.easeOut(duration: 0.4)) { current = beat }
         let words = Double(beat.wordCount)
         let reveal = beat.startDelay + words * beat.perWord + 0.8
-        let hold = min(6.5, 1.8 + 0.28 * words)
+        let hold = min(4.5, 1.2 + 0.2 * words)
         await sleep(reveal + hold)
         if Task.isCancelled { return }
-        withAnimation(.easeInOut(duration: 0.9)) { current = nil }
-        await sleep(1.0)
+        withAnimation(.easeInOut(duration: 0.5)) { current = nil }
+        await sleep(0.5)
     }
 
     private func playWaiting(_ model: OverlayModel) async {

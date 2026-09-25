@@ -10,6 +10,7 @@ struct RoastWireRequest: Codable, Equatable, Sendable {
     let prompt: String
     let tokenCount: Int
     let model: String?
+    let user: String
 
     init(_ request: RoastRequest) {
         sessionId = request.sessionId
@@ -17,6 +18,7 @@ struct RoastWireRequest: Codable, Equatable, Sendable {
         prompt = request.prompt
         tokenCount = request.tokenCount
         model = request.model
+        user = request.user
     }
 
     enum CodingKeys: String, CodingKey {
@@ -26,6 +28,7 @@ struct RoastWireRequest: Codable, Equatable, Sendable {
         case prompt
         case tokenCount = "token_count"
         case model
+        case user
     }
 
     func encode(to encoder: Encoder) throws {
@@ -36,6 +39,7 @@ struct RoastWireRequest: Codable, Equatable, Sendable {
         try c.encode(prompt, forKey: .prompt)
         try c.encode(tokenCount, forKey: .tokenCount)
         try c.encode(model, forKey: .model)
+        try c.encode(user, forKey: .user)
     }
 
     func jsonString() throws -> String {
@@ -68,6 +72,7 @@ struct RoastWireStats: Codable, Equatable, Sendable {
     var leaderboardTotal: Int?
     var peopleAbove: Int?
     var leaderboard: [Entry]?
+    var badges: [String]?
 
     enum CodingKeys: String, CodingKey {
         case similarCount = "similar_count"
@@ -81,6 +86,7 @@ struct RoastWireStats: Codable, Equatable, Sendable {
         case leaderboardTotal = "leaderboard_total"
         case peopleAbove = "people_above"
         case leaderboard
+        case badges
     }
 
     init(_ s: RoastStats) {
@@ -95,6 +101,7 @@ struct RoastWireStats: Codable, Equatable, Sendable {
         leaderboardTotal = s.leaderboardTotal
         peopleAbove = s.peopleAbove
         leaderboard = s.leaderboard.map { Entry(name: $0.name, tokens: $0.tokens, isMe: $0.isMe) }
+        badges = s.badges
     }
 
     /// Tolerant mapping: missing fields default to 0 / empty.
@@ -113,7 +120,8 @@ struct RoastWireStats: Codable, Equatable, Sendable {
             peopleAbove: peopleAbove ?? max(0, rank - 1),
             leaderboard: (leaderboard ?? []).map {
                 LeaderboardEntry(name: $0.name, tokens: $0.tokens, isMe: $0.isMe ?? false)
-            }
+            },
+            badges: badges ?? []
         )
     }
 }

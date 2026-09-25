@@ -17,6 +17,14 @@ final class Coordinator {
 
     private let introSeconds: Double = 2.6
 
+    /// `AIANDO_USER` wins. Otherwise the macOS short username.
+    private static func displayName() -> String {
+        let env = ProcessInfo.processInfo.environment["AIANDO_USER"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let env, !env.isEmpty { return String(env.prefix(24)) }
+        let user = NSUserName().trimmingCharacters(in: .whitespacesAndNewlines)
+        return user.isEmpty ? "anon" : String(user.prefix(24))
+    }
+
     init(model: OverlayModel, panel: OverlayPanelController, source: SessionEventSource, service: RoastService) {
         self.model = model
         self.panel = panel
@@ -83,6 +91,7 @@ final class Coordinator {
         let request = RoastRequest(
             sessionId: session.id,
             conversationId: session.conversationId,
+            user: Self.displayName(),
             prompt: session.prompt,
             tokenCount: estimateTokens(session.prompt),
             model: session.model

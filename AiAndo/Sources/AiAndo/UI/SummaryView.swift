@@ -1,3 +1,4 @@
+import AppKit
 import Charts
 import SwiftUI
 
@@ -28,6 +29,7 @@ struct SummaryView: View {
 
 private struct SummaryCard: View {
     let model: OverlayModel
+    @State private var copied = false
 
     var body: some View {
         let stats = model.stats
@@ -69,6 +71,11 @@ private struct SummaryCard: View {
                 .staggered(3, step: 0.22, base: 0.45)
             }
 
+            if let badges = stats?.badges, !badges.isEmpty {
+                BadgeRow(badges: badges)
+                    .staggered(4, step: 0.22, base: 0.45)
+            }
+
             Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
                 .staggered(4, step: 0.22, base: 0.45)
 
@@ -85,6 +92,23 @@ private struct SummaryCard: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(0.35))
                 Spacer()
+                if let better = model.texts[.promptMigliore], !better.isEmpty {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(better, forType: .string)
+                        copied = true
+                    } label: {
+                        Text(copied ? "Copiato" : "Copia prompt")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .frame(height: 38)
+                            .background(Capsule().strokeBorder(Color.white.opacity(0.28), lineWidth: 1))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .focusable(false)
+                }
                 Button {
                     model.dismiss()
                 } label: {
@@ -116,6 +140,24 @@ private struct SummaryCard: View {
         .shadow(color: .black.opacity(0.35), radius: 40, y: 20)
         .contentShape(Rectangle())
         .onTapGesture {} // swallow taps so the backdrop doesn't dismiss
+    }
+}
+
+private struct BadgeRow: View {
+    let badges: [String]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(badges, id: \.self) { badge in
+                Text(badge)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AA.ink)
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .background(Capsule().fill(AA.accent))
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
