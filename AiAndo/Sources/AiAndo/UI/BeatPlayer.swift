@@ -39,7 +39,7 @@ final class BeatPlayer {
     /// Global pace multiplier (> 1 = faster). `AIANDO_PACE` env var, for testing.
     static let pace: Double = {
         if let s = ProcessInfo.processInfo.environment["AIANDO_PACE"], let v = Double(s), v > 0 { return v }
-        return 1.7
+        return 2.1
     }()
 
     private(set) var current: Beat?
