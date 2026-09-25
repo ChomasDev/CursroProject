@@ -260,50 +260,64 @@ private struct Leaderboard: View {
         return top
     }
 
-    private func name(_ e: LeaderboardEntry) -> String { e.isMe ? "tu · #\(rank)" : e.name }
+    private static let palette: [Color] = [AA.violet, AA.cyan, AA.pink, AA.orange]
+
+    private func color(for entry: LeaderboardEntry, at index: Int) -> Color {
+        entry.isMe ? AA.mint : Self.palette[index % Self.palette.count]
+    }
 
     var body: some View {
         let rows = self.rows
         let maxTokens = Double(rows.map(\.tokens).max() ?? 1)
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             SectionLabel(text: "Classifica Ai-Ando · token")
-            Chart(rows) { entry in
-                BarMark(
-                    x: .value("Token", Double(entry.tokens) * progress),
-                    y: .value("Nome", name(entry)),
-                    height: .fixed(12)
-                )
-                .cornerRadius(6)
-                .foregroundStyle(
-                    entry.isMe
-                        ? AnyShapeStyle(AA.accent)
-                        : AnyShapeStyle(AA.ink.opacity(0.15))
-                )
-                .annotation(position: .trailing, spacing: 8) {
-                    Text(Fmt.int(Double(entry.tokens)))
-                        .font(AA.rounded(11.5, .semibold))
-                        .foregroundStyle(entry.isMe ? AA.ink : AA.ink.opacity(0.45))
-                        .opacity(progress)
+            VStack(spacing: 10) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, entry in
+                    row(entry, position: entry.isMe ? rank : index + 1,
+                        color: color(for: entry, at: index), maxTokens: maxTokens)
                 }
             }
-            .chartXScale(domain: 0...(maxTokens * 1.2))
-            .chartXAxis(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let n = value.as(String.self) {
-                            Text(n)
-                                .font(.system(size: 12.5, weight: n.hasPrefix("tu") ? .bold : .medium))
-                                .foregroundStyle(n.hasPrefix("tu") ? AA.ink : AA.ink.opacity(0.55))
-                        }
-                    }
-                }
-            }
-            .frame(height: CGFloat(rows.count) * 28)
         }
         .onAppear {
             withAnimation(.spring(response: 1.6, dampingFraction: 0.85).delay(1.5)) { progress = 1 }
         }
+    }
+
+    private func row(_ entry: LeaderboardEntry, position: Int, color: Color, maxTokens: Double) -> some View {
+        HStack(spacing: 12) {
+            Text("\(position)")
+                .font(AA.rounded(12, .bold))
+                .foregroundStyle(entry.isMe ? AA.ink : .white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(color))
+            Text(entry.isMe ? "Tu" : entry.name)
+                .font(.system(size: 13, weight: entry.isMe ? .bold : .medium))
+                .foregroundStyle(entry.isMe ? AA.ink : AA.ink.opacity(0.7))
+                .lineLimit(1)
+                .frame(width: 90, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(color.opacity(0.15))
+                    Capsule()
+                        .fill(LinearGradient(colors: [color.opacity(0.7), color],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(10, geo.size.width * CGFloat(Double(entry.tokens) / maxTokens) * progress))
+                }
+            }
+            .frame(height: 10)
+            Text(Fmt.int(Double(entry.tokens)))
+                .font(AA.rounded(12, .semibold))
+                .monospacedDigit()
+                .foregroundStyle(entry.isMe ? AA.ink : AA.ink.opacity(0.55))
+                .frame(minWidth: 56, alignment: .trailing)
+                .opacity(progress)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(entry.isMe ? AA.mint.opacity(0.22) : AA.ink.opacity(0.04))
+        )
     }
 }
 
