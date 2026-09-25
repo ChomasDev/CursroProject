@@ -24,9 +24,19 @@ export type TurnStats = {
 
 let board: Board = load();
 
-export function recordTurn(userId: string, userText: string, startedAt: number): TurnStats {
+export type LeaderboardRow = { name: string; tokens: number; is_me: boolean };
+
+export function recordTurn(
+  userId: string,
+  userText: string,
+  startedAt: number,
+  givenTokens?: number,
+): TurnStats {
   const now = Date.now();
-  const tokenCount = Math.max(1, Math.ceil(userText.length / 4));
+  const tokenCount =
+    givenTokens && givenTokens > 0
+      ? Math.round(givenTokens)
+      : Math.max(1, Math.ceil(userText.length / 4));
   const entry = board[userId] ?? { tokens: 0, prompts: [] };
   entry.tokens += tokenCount;
   entry.prompts = entry.prompts.filter((stamp) => now - stamp < DAY_MS);
@@ -55,6 +65,17 @@ export function recordTurn(userId: string, userText: string, startedAt: number):
     totalUsers: totals.length,
     peopleAbove,
   };
+}
+
+export function leaderboardFor(userId: string): LeaderboardRow[] {
+  return Object.entries(board)
+    .map(([id, entry]) => ({
+      name: id === userId ? "tu" : id,
+      tokens: entry.tokens,
+      is_me: id === userId,
+    }))
+    .sort((a, b) => b.tokens - a.tokens)
+    .slice(0, 8);
 }
 
 function round2(value: number): number {

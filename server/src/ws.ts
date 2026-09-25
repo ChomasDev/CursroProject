@@ -1,13 +1,11 @@
 import { WebSocket, WebSocketServer, type RawData } from "ws";
-import type { Server } from "http";
 import { AndoError } from "./errors";
-import { wsPath } from "./config";
 import { parseIncoming } from "./protocol";
 import { getSession, snapshot, type Session } from "./sessions";
 import { applyIncoming } from "./services/ando.service";
 
-export function attachWebSocket(server: Server): void {
-  const wss = new WebSocketServer({ server, path: wsPath, maxPayload: 2_000_000 });
+export function attachWebSocket(): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 2_000_000 });
   wss.on("connection", (socket, request) => {
     const sessionId = new URL(request.url ?? "/", "http://localhost").searchParams.get("sessionId");
     let session = sessionId ? getSession(sessionId) : undefined;
@@ -33,6 +31,7 @@ export function attachWebSocket(server: Server): void {
       session?.sockets.delete(socket);
     });
   });
+  return wss;
 }
 
 async function onMessage(

@@ -13,7 +13,14 @@ final class OverlayPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { onEscape?() }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { onEscape?() } else { super.keyDown(with: event) }
+        if Self.closesOverlay(event) { onEscape?() } else { super.keyDown(with: event) }
+    }
+
+    /// Esc, or Command+L.
+    static func closesOverlay(_ event: NSEvent) -> Bool {
+        if event.keyCode == 53 { return true }
+        let isL = event.keyCode == 37 || event.charactersIgnoringModifiers?.lowercased() == "l"
+        return isL && event.modifierFlags.contains(.command)
     }
 }
 
@@ -65,13 +72,13 @@ final class OverlayPanelController {
         panel.onEscape = { [weak model] in model?.dismiss() }
 
         localEsc = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, event.keyCode == 53, self.isShown else { return event }
+            guard let self, OverlayPanel.closesOverlay(event), self.isShown else { return event }
             self.model.dismiss()
             return nil
         }
         // Works only if the app has Accessibility permission; harmless otherwise.
         globalEsc = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return }
+            guard OverlayPanel.closesOverlay(event) else { return }
             Task { @MainActor in
                 guard let self, self.isShown, self.model.phase == .summary else { return }
                 self.model.dismiss()
