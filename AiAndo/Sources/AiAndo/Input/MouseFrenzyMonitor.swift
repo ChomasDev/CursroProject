@@ -39,7 +39,7 @@ final class MouseFrenzyMonitor {
         let now = ProcessInfo.processInfo.systemUptime
         tracker.add(x: point.x, y: point.y, time: now)
         if tracker.isFrantic {
-            visibleUntil = now + 2.6
+            visibleUntil = now + 1.1
             if model.dizzyLine == nil {
                 model.dizzyLine = MouseDizzyCopy.line
             }

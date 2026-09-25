@@ -304,8 +304,32 @@ def ensure_server() -> None:
         time.sleep(0.05)
 
 
+def stop_legacy_overlay() -> None:
+    pid_path = ROOT / "overlay.pid"
+    try:
+        pid = int(pid_path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return
+    if pid <= 0:
+        return
+    try:
+        cmdline = subprocess.check_output(["ps", "-p", str(pid), "-o", "command="], text=True)
+    except (OSError, subprocess.CalledProcessError):
+        cmdline = ""
+    if "prompt-overlay.py" in cmdline:
+        try:
+            os.kill(pid, 15)
+        except OSError:
+            pass
+    try:
+        pid_path.unlink()
+    except OSError:
+        pass
+
+
 def ensure_overlay() -> None:
     if SWIFT_APP.exists():
+        stop_legacy_overlay()
         # `open -g` is a no-op if already running and never steals focus from Cursor.
         subprocess.Popen(
             ["open", "-g", str(SWIFT_APP)],
