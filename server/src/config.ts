@@ -9,6 +9,7 @@ function num(value: string | undefined, fallback: number): number {
 }
 
 export const wsPath = "/api/ws";
+export const roastPath = "/roast";
 
 export const config = {
   port: num(process.env.PORT, 3000),

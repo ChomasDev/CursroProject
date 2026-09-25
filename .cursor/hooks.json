@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 prompt-overlay/hooks/prompt-mirror.py",
+        "timeout": 2,
+        "failClosed": false
+      }
+    ]
+  }
+}

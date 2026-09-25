@@ -23,7 +23,12 @@ type AgentResponse = {
 
 export async function searchCitation(userText: string, signal?: AbortSignal): Promise<Citation> {
   if (!config.perplexityApiKey) {
-    throw new AndoError("Manca PERPLEXITY_API_KEY nel file server/.env", 500);
+    return {
+      found: false,
+      work: "",
+      quote: "",
+      note: "Perplexity non configurato: fun fact ironico.",
+    };
   }
 
   const sample = userText.replace(/\s+/g, " ").trim().slice(0, 700);

@@ -13,7 +13,7 @@ import type { AndoRoast } from "./claude.service";
 import { writeRoast } from "./claude.service";
 import { searchCitation } from "./perplexity.service";
 import { systemPrompt, userPrompt } from "./prompt.service";
-import { recordTurn, type TurnStats } from "./stats.service";
+import { leaderboardFor, recordTurn, type LeaderboardRow, type TurnStats } from "./stats.service";
 
 export type IngestResult =
   | { kind: "opened"; sessionId: string }
@@ -80,6 +80,42 @@ export function runTurn(session: Session): Promise<AndoRoast> {
   );
   session.job = job;
   return job;
+}
+
+const LOCAL_USER = "tu";
+
+export function prepareTurn(prompt: string, tokenCount?: number): {
+  prompt: string;
+  stats: TurnStats;
+  leaderboard: LeaderboardRow[];
+} {
+  const stats = recordTurn(LOCAL_USER, prompt, Date.now(), tokenCount);
+  return { prompt, stats, leaderboard: leaderboardFor(LOCAL_USER) };
+}
+
+export async function finishRoast(
+  prepared: { prompt: string; stats: TurnStats },
+  signal?: AbortSignal,
+): Promise<AndoRoast> {
+  if (hasSecret(prepared.prompt)) return secretRoast(prepared.stats);
+  systemPrompt();
+  let citation = {
+    found: false,
+    work: "",
+    quote: "",
+    note: "ricerca non disponibile",
+  };
+  try {
+    citation = await searchCitation(prepared.prompt, signal);
+  } catch (error) {
+    if (error instanceof AndoError && error.status === 409) throw error;
+    if (error instanceof Error && error.name === "AbortError") throw error;
+  }
+  return writeRoast(
+    systemPrompt(),
+    userPrompt(prepared.prompt, "", prepared.stats, citation),
+    signal,
+  );
 }
 
 async function produce(

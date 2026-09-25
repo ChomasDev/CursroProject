@@ -4,6 +4,8 @@
 import fcntl
 import json
 import os
+import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -230,6 +232,76 @@ def interpreter() -> str:
 
 
 SWIFT_APP = Path.home() / "Applications" / "AiAndo.app"
+REPO = Path(__file__).resolve().parents[2]
+SERVER = REPO / "server"
+
+
+def server_port() -> int:
+    try:
+        for line in (SERVER / ".env").read_text(encoding="utf-8").splitlines():
+            if line.startswith("PORT="):
+                return int(line.split("=", 1)[1].strip() or "3000")
+    except (OSError, ValueError):
+        pass
+    return 3000
+
+
+def port_open(port: int) -> bool:
+    probe = socket.socket()
+    probe.settimeout(0.2)
+    try:
+        probe.connect(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
+def find_node() -> str | None:
+    found = shutil.which("node")
+    if found:
+        return found
+    nvm = Path.home() / ".nvm" / "versions" / "node"
+    if nvm.is_dir():
+        versions = sorted((path for path in nvm.iterdir() if path.is_dir()), reverse=True)
+        for version in versions:
+            candidate = version / "bin" / "node"
+            if candidate.exists():
+                return str(candidate)
+    for candidate in ("/opt/homebrew/bin/node", "/usr/local/bin/node"):
+        if Path(candidate).exists():
+            return candidate
+    return None
+
+
+def ensure_server() -> None:
+    port = server_port()
+    if port_open(port):
+        return
+    node = find_node()
+    tsx = SERVER / "node_modules" / ".bin" / "tsx"
+    if not node or not tsx.exists():
+        sys.stderr.write("prompt-mirror: server non avviato (manca node o tsx)\n")
+        return
+    ROOT.mkdir(parents=True, exist_ok=True)
+    log = open(ROOT / "server.log", "a", encoding="utf-8")
+    env = os.environ.copy()
+    env["PATH"] = str(Path(node).parent) + os.pathsep + env.get("PATH", "")
+    subprocess.Popen(
+        [node, str(tsx), "src/index.ts"],
+        cwd=str(SERVER),
+        env=env,
+        start_new_session=True,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+    )
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if port_open(port):
+            return
+        time.sleep(0.05)
 
 
 def ensure_overlay() -> None:
@@ -268,7 +340,7 @@ def finish(name: str) -> None:
     if name == "beforeSubmitPrompt":
         sys.stdout.write('{"continue": true}\n')
     elif name == "preToolUse":
-        sys.stdout.write('{"permission": "allow"}\n')
+        sys.stdout.write("{}\n")
     else:
         sys.stdout.write("{}\n")
 
@@ -283,6 +355,7 @@ def main() -> None:
         name = str(payload.get("hook_event_name") or "")
         emit(payload)
         if name == "beforeSubmitPrompt":
+            ensure_server()
             ensure_overlay()
     except Exception as exc:
         sys.stderr.write(f"prompt-mirror: {exc}\n")

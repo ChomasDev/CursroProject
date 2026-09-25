@@ -48,17 +48,21 @@ enum RoastServiceFactory {
     static let envKey = "AIANDO_WS_URL"
     static let defaultsKey = "wsURL"
 
-    /// `AIANDO_WS_URL` env var (or UserDefaults "wsURL") → Fallback(WebSocket, Mock); otherwise Mock.
+    static let defaultURL = "ws://127.0.0.1:3000/roast"
+
+    /// Local roast socket, unless `AIANDO_WS_URL` or UserDefaults "wsURL" points somewhere else.
+    /// If that socket fails before the first frame, the mock roast is used.
     static func make() -> any RoastService {
         guard let url = configuredURL() else { return MockRoastService() }
         return FallbackRoastService(primary: WebSocketRoastService(url: url), fallback: MockRoastService())
     }
 
     static func configuredURL() -> URL? {
-        let raw = ProcessInfo.processInfo.environment[envKey]
+        let configured = ProcessInfo.processInfo.environment[envKey]
             ?? UserDefaults.standard.string(forKey: defaultsKey)
-        guard let s = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty,
-              let url = URL(string: s), let scheme = url.scheme?.lowercased(),
+        let raw = configured?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chosen = (raw?.isEmpty == false) ? raw! : defaultURL
+        guard let url = URL(string: chosen), let scheme = url.scheme?.lowercased(),
               ["ws", "wss"].contains(scheme) else { return nil }
         return url
     }
