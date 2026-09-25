@@ -36,6 +36,7 @@ final class OverlayPanelController {
     private var globalEsc: Any?
     private let frenzy: MouseFrenzyMonitor
     private var closeHotKey: OverlayHotKey?
+    private var closeButton: OverlayCloseButton?
     private(set) var isShown = false
 
     init(model: OverlayModel, followsModelPhase: Bool = true) {
@@ -72,6 +73,7 @@ final class OverlayPanelController {
 
         panel.onEscape = { [weak model] in model?.dismiss() }
         closeHotKey = OverlayHotKey { [weak model] in model?.dismiss() }
+        closeButton = OverlayCloseButton { [weak model] in model?.dismiss() }
 
         localEsc = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, OverlayPanel.closesOverlay(event), self.isShown else { return event }
@@ -105,12 +107,14 @@ final class OverlayPanelController {
         panel.ignoresMouseEvents = model.phase != .summary
         guard !isShown else {
             panel.orderFrontRegardless()
+            closeButton?.show(on: panel.frame)
             return
         }
         isShown = true
         panel.setFrame(targetFrame(), display: false)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
+        closeButton?.show(on: panel.frame)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.6
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -124,6 +128,7 @@ final class OverlayPanelController {
         isShown = false
         frenzy.stop()
         closeHotKey?.unregister()
+        closeButton?.hide()
         panel.ignoresMouseEvents = true
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.45
