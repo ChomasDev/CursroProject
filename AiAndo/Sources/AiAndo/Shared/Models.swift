@@ -97,12 +97,14 @@ struct RoastStats: Codable, Equatable, Sendable {
     var leaderboardTotal: Int
     var peopleAbove: Int
     var leaderboard: [LeaderboardEntry]
+    var badges: [String] = []
 }
 
 /// Payload sent to the backend when a prompt starts.
 struct RoastRequest: Codable, Equatable, Sendable {
     let sessionId: String
     let conversationId: String?
+    let user: String
     let prompt: String
     let tokenCount: Int
     let model: String?

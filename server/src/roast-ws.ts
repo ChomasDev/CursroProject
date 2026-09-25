@@ -32,8 +32,8 @@ async function handle(socket: WebSocket, data: RawData, abort: AbortController):
   ping.unref();
   try {
     const request = parseRequest(rawText(data));
-    const prepared = prepareTurn(request.prompt, request.tokenCount);
-    send(socket, statsFrame(prepared.stats, prepared.leaderboard));
+    const prepared = prepareTurn(request.prompt, request.tokenCount, request.userId);
+    send(socket, statsFrame(prepared.stats, prepared.leaderboard, prepared.badges));
     const roast = await finishRoast(prepared, abort.signal);
     await streamRoast(socket, roast, abort.signal);
     send(socket, { type: "done" });
@@ -48,7 +48,7 @@ async function handle(socket: WebSocket, data: RawData, abort: AbortController):
   }
 }
 
-function parseRequest(raw: string): { prompt: string; tokenCount?: number } {
+function parseRequest(raw: string): { prompt: string; tokenCount?: number; userId: string } {
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -60,10 +60,16 @@ function parseRequest(raw: string): { prompt: string; tokenCount?: number } {
   const prompt = typeof record.prompt === "string" ? record.prompt.trim() : "";
   if (!prompt) throw new AndoError("Manca il prompt", 400);
   const tokenCount = typeof record.token_count === "number" ? record.token_count : undefined;
-  return { prompt, tokenCount };
+  return { prompt, tokenCount, userId: cleanUser(record.user) };
 }
 
-function statsFrame(stats: TurnStats, leaderboard: LeaderboardRow[]) {
+function cleanUser(value: unknown): string {
+  const raw = typeof value === "string" ? value : "";
+  const name = raw.replace(/\s+/g, " ").trim().slice(0, 24);
+  return name || "anon";
+}
+
+function statsFrame(stats: TurnStats, leaderboard: LeaderboardRow[], badges: string[]) {
   return {
     type: "stats",
     stats: {
@@ -78,6 +84,7 @@ function statsFrame(stats: TurnStats, leaderboard: LeaderboardRow[]) {
       leaderboard_total: stats.totalUsers,
       people_above: stats.peopleAbove,
       leaderboard,
+      badges,
     },
   };
 }

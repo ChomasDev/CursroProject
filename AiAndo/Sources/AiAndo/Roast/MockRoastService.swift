@@ -74,6 +74,17 @@ enum MockRoastGenerator {
         "ale_gpt_dipendente", "nonnacursor", "pietro.semicolon", "bea_refactor",
     ]
 
+    static func badges(for request: RoastRequest) -> [String] {
+        var badges: [String] = []
+        let prompt = request.prompt.lowercased()
+        if prompt.contains("per favore") || prompt.contains("please") || prompt.contains("grazie") {
+            badges.append("ha detto per favore all'AI")
+        }
+        let tokens = request.tokenCount > 0 ? request.tokenCount : estimateTokens(request.prompt)
+        if tokens <= 8 { badges.append("prompt cortissimo") }
+        return badges
+    }
+
     // MARK: Stats
 
     static func stats(for request: RoastRequest) -> RoastStats {
@@ -126,7 +137,8 @@ enum MockRoastGenerator {
             leaderboardRank: rank,
             leaderboardTotal: total,
             peopleAbove: rank - 1,
-            leaderboard: entries
+            leaderboard: entries,
+            badges: Self.badges(for: request)
         )
     }
 

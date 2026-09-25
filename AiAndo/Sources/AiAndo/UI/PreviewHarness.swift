@@ -85,7 +85,8 @@ enum UIDemo {
                 LeaderboardEntry(name: "ale.codes", tokens: 655_900, isMe: false),
                 LeaderboardEntry(name: "fede", tokens: 512_300, isMe: false),
                 LeaderboardEntry(name: "Tu", tokens: 388_750, isMe: true),
-            ]
+            ],
+            badges: ["ha detto per favore all'AI", "prompt cortissimo"]
         )))
 
         var activityIndex = 0
