@@ -2,24 +2,56 @@
 
 A macOS app that roasts your prompts while Cursor works. One home page, provider settings, and the original large-text overlay. Requires macOS 14 or newer.
 
-## Build and use
+## Quick install (one command)
 
-Build with Xcode command-line tools, Node 22+, and npm:
+Open **Terminal** (press `Cmd + Space`, type "Terminal", press Enter), paste this line, and press Enter:
 
 ```sh
-./AiAndo/scripts/build-app.sh
-open AiAndo/build/AiAndo.app
+[ -d ~/.aiando/src ] || git clone https://github.com/ChomasDev/CursroProject.git ~/.aiando/src; ~/.aiando/src/install.sh
 ```
 
-1. Open the app. By default it uses **Cursor** as its AI, so no API key is needed. On first launch it installs the [Cursor CLI](https://cursor.com/docs/cli/installation) (`agent`, in `~/.local/bin`) if it is missing and opens your browser so you can approve Ai-Ando with your Cursor account. You only do this once.
-2. Click **Install in Cursor**. This copies the app into `~/Applications`, installs its hook, merges your global Cursor configuration, and backs up the original.
-3. Restart Cursor, then submit a prompt. Ai-Ando starts in the background and shows the overlay. Close it with Escape, Command-L, or its close button.
+The script does everything for you:
 
-### Using Cursor as the AI
+1. Checks you have Apple's command-line tools. If not, a macOS window opens to install them: accept, wait, then run the command again.
+2. Uses your Node.js 22+ if you have it. Otherwise it downloads a private copy from nodejs.org, checksum-verified, without touching your system.
+3. Downloads Ai-Ando into `~/.aiando/src`.
+4. Builds the app and installs it in `~/Applications`.
+5. Opens Ai-Ando, connects it to Cursor, and sets up the Cursor CLI. No API key needed.
+
+Then there are only three things left for you to do:
+
+1. **Approve in the browser:** Cursor opens a page; click to approve Ai-Ando. You only do this once.
+2. **Restart Cursor.**
+3. **Send any prompt in Cursor.** The roast appears on screen. Close it with Escape, Command-L, or its close button.
+
+**To update**, run the same command again. The repository is private, so your GitHub account needs access to it. If Git asks you to sign in, use your GitHub account.
+
+## Manual install (step by step)
+
+Requirements: macOS 14 or newer, Apple's command-line tools (`xcode-select --install`), and Node 22+.
+
+1. Download the code:
+   ```sh
+   git clone https://github.com/ChomasDev/CursroProject.git
+   cd CursroProject
+   ```
+2. Build the app:
+   ```sh
+   ./AiAndo/scripts/build-app.sh --install
+   ```
+3. Open it:
+   ```sh
+   open ~/Applications/AiAndo.app
+   ```
+4. Ai-Ando installs the [Cursor CLI](https://cursor.com/docs/cli/installation) (`agent`, in `~/.local/bin`) if it is missing and opens your browser. **Approve Ai-Ando** with your Cursor account; you only do this once.
+5. On the app's home page, click **Install in Cursor**. This installs the hook and merges your global Cursor configuration, keeping a backup of the original.
+6. **Restart Cursor** and send a prompt.
+
+## Using Cursor as the AI
 
 Roasts run through `agent -p` on the user's own Cursor plan, so they count toward that plan's usage. Each call runs in an empty temporary folder without `--force`, so the agent cannot touch your projects. If sign-in is missing or expires, the next roast starts it again, and **Settings → Cursor account → Connect Cursor** does the same by hand. The model defaults to `auto`; you can enter any model listed by `agent models`. Expect a few extra seconds per roast compared with a direct API call.
 
-### Using your own API key (optional)
+## Using your own API key (optional)
 
 Open **Settings**, choose Anthropic, OpenAI, Google, or OpenRouter, paste that provider's API key, and pick a model. **Test connection** makes a small paid API request; **Save settings** applies it to subsequent roasts.
 

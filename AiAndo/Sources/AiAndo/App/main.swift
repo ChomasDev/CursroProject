@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installStatusItem()
         coordinator = Coordinator(model: model, panel: panel, source: EventLogWatcher(), service: RoastServiceFactory.make())
         coordinator?.start()
+        // install.sh launches with --setup: connect Cursor's hooks without asking for a click.
+        if CommandLine.arguments.contains("--setup") { try? CursorInstaller().install() }
         if CommandLine.arguments.contains("--demo") { showPreview() }
         else if !CommandLine.arguments.contains("--background") {
             showApp()
