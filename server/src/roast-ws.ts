@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { AndoError } from "./errors";
 import { finishRoast, prepareTurn } from "./services/ando.service";
-import type { AndoRoast } from "./services/claude.service";
+import type { AndoRoast } from "./services/ai.service";
 import type { LeaderboardRow, TurnStats } from "./services/stats.service";
 
 const TEXT_SECTIONS = [

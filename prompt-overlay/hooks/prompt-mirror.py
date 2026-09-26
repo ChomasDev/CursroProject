@@ -4,8 +4,6 @@
 import fcntl
 import json
 import os
-import shutil
-import socket
 import subprocess
 import sys
 import time
@@ -203,161 +201,19 @@ def emit(payload: dict) -> None:
         unlock_file(handle)
 
 
-def interpreter() -> str:
-    cached = ROOT / "overlay.python"
-    if cached.exists():
-        path = cached.read_text(encoding="utf-8").strip()
-        if path and Path(path).exists():
-            return path
-    candidates = (
-        sys.executable,
-        "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
-    )
-    for candidate in candidates:
-        if not Path(candidate).exists():
-            continue
-        try:
-            probe = subprocess.run(
-                [candidate, "-c", "import AppKit"],
-                capture_output=True,
-                timeout=2,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if probe.returncode == 0:
-            ROOT.mkdir(parents=True, exist_ok=True)
-            cached.write_text(candidate, encoding="utf-8")
-            return candidate
-    return sys.executable
-
-
-SWIFT_APP = Path.home() / "Applications" / "AiAndo.app"
-REPO = Path(__file__).resolve().parents[2]
-SERVER = REPO / "server"
-
-
-def server_port() -> int:
-    try:
-        for line in (SERVER / ".env").read_text(encoding="utf-8").splitlines():
-            if line.startswith("PORT="):
-                return int(line.split("=", 1)[1].strip() or "3000")
-    except (OSError, ValueError):
-        pass
-    return 3000
-
-
-def port_open(port: int) -> bool:
-    probe = socket.socket()
-    probe.settimeout(0.2)
-    try:
-        probe.connect(("127.0.0.1", port))
-        return True
-    except OSError:
-        return False
-    finally:
-        probe.close()
-
-
-def find_node() -> str | None:
-    found = shutil.which("node")
-    if found:
-        return found
-    nvm = Path.home() / ".nvm" / "versions" / "node"
-    if nvm.is_dir():
-        versions = sorted((path for path in nvm.iterdir() if path.is_dir()), reverse=True)
-        for version in versions:
-            candidate = version / "bin" / "node"
-            if candidate.exists():
-                return str(candidate)
-    for candidate in ("/opt/homebrew/bin/node", "/usr/local/bin/node"):
-        if Path(candidate).exists():
-            return candidate
-    return None
-
-
-def ensure_server() -> None:
-    port = server_port()
-    if port_open(port):
-        return
-    node = find_node()
-    tsx = SERVER / "node_modules" / ".bin" / "tsx"
-    if not node or not tsx.exists():
-        sys.stderr.write("prompt-mirror: server non avviato (manca node o tsx)\n")
-        return
-    ROOT.mkdir(parents=True, exist_ok=True)
-    log = open(ROOT / "server.log", "a", encoding="utf-8")
-    env = os.environ.copy()
-    env["PATH"] = str(Path(node).parent) + os.pathsep + env.get("PATH", "")
-    subprocess.Popen(
-        [node, str(tsx), "src/index.ts"],
-        cwd=str(SERVER),
-        env=env,
-        start_new_session=True,
-        stdin=subprocess.DEVNULL,
-        stdout=log,
-        stderr=subprocess.STDOUT,
-    )
-    deadline = time.time() + 2.0
-    while time.time() < deadline:
-        if port_open(port):
-            return
-        time.sleep(0.05)
-
-
-def stop_legacy_overlay() -> None:
-    pid_path = ROOT / "overlay.pid"
-    try:
-        pid = int(pid_path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return
-    if pid <= 0:
-        return
-    try:
-        cmdline = subprocess.check_output(["ps", "-p", str(pid), "-o", "command="], text=True)
-    except (OSError, subprocess.CalledProcessError):
-        cmdline = ""
-    if "prompt-overlay.py" in cmdline:
-        try:
-            os.kill(pid, 15)
-        except OSError:
-            pass
-    try:
-        pid_path.unlink()
-    except OSError:
-        pass
-
-
 def ensure_overlay() -> None:
-    if SWIFT_APP.exists():
-        stop_legacy_overlay()
-        # `open -g` is a no-op if already running and never steals focus from Cursor.
+    app = Path.home() / "Applications" / "AiAndo.app"
+    if app.exists():
+        running = subprocess.run(["/usr/bin/pgrep", "-x", "AiAndo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if running.returncode == 0:
+            return
         subprocess.Popen(
-            ["open", "-g", str(SWIFT_APP)],
+            ["/usr/bin/open", "-g", str(app), "--args", "--background"],
             start_new_session=True,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        return
-    pid_path = ROOT / "overlay.pid"
-    try:
-        if pid_path.exists():
-            pid = int(pid_path.read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
-            return
-    except (OSError, ValueError):
-        pass
-    script = Path(__file__).resolve().parent / "prompt-overlay.py"
-    if not script.exists():
-        return
-    subprocess.Popen(
-        [interpreter(), str(script)],
-        start_new_session=True,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        cwd=str(Path.home()),
-    )
 
 
 def finish(name: str) -> None:
@@ -379,7 +235,6 @@ def main() -> None:
         name = str(payload.get("hook_event_name") or "")
         emit(payload)
         if name == "beforeSubmitPrompt":
-            ensure_server()
             ensure_overlay()
     except Exception as exc:
         sys.stderr.write(f"prompt-mirror: {exc}\n")

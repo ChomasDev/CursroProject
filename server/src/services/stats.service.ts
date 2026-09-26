@@ -4,7 +4,7 @@ import { randomInt } from "crypto";
 import { config } from "../config";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FILE = path.resolve(__dirname, "../../data/leaderboard.json");
+const FILE = process.env.AIANDO_DATA_FILE || path.resolve(__dirname, "../../data/leaderboard.json");
 
 type Entry = { tokens: number; prompts: number[]; lastTokens: number };
 type Board = Record<string, Entry>;

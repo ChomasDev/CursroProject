@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { WebSocket } from "ws";
 import { AndoError } from "./errors";
 import { redact } from "./secrets";
-import type { AndoRoast } from "./services/claude.service";
+import type { AndoRoast } from "./services/ai.service";
 import type { TurnStats } from "./services/stats.service";
 
 const TTL_MS = 30 * 60 * 1000;

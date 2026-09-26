@@ -9,8 +9,8 @@ import {
   startTurn,
   type Session,
 } from "../sessions";
-import type { AndoRoast } from "./claude.service";
-import { writeRoast } from "./claude.service";
+import type { AISettings, AndoRoast } from "./ai.service";
+import { writeRoast } from "./ai.service";
 import { searchCitation } from "./perplexity.service";
 import { systemPrompt, userPrompt } from "./prompt.service";
 import {
@@ -106,6 +106,7 @@ export function prepareTurn(prompt: string, tokenCount: number | undefined, user
 export async function finishRoast(
   prepared: { prompt: string; stats: TurnStats },
   signal?: AbortSignal,
+  settings?: AISettings,
 ): Promise<AndoRoast> {
   if (hasSecret(prepared.prompt)) return secretRoast(prepared.stats);
   systemPrompt();
@@ -125,6 +126,7 @@ export async function finishRoast(
     systemPrompt(),
     userPrompt(prepared.prompt, "", prepared.stats, citation),
     signal,
+    settings,
   );
 }
 
@@ -132,6 +134,7 @@ async function produce(
   session: Session,
   generation: number,
   signal?: AbortSignal,
+  settings?: AISettings,
 ): Promise<AndoRoast> {
   const stats = draftStats(session, generation);
   if (hasSecret(`${session.userText}\n${session.assistantText}`)) {

@@ -63,6 +63,7 @@ final class Coordinator {
     }
 
     private func begin(_ session: PromptSession) {
+        UIDemo.stop()
         roastTask?.cancel()
         introTask?.cancel()
         clockTask?.cancel()
@@ -105,7 +106,7 @@ final class Coordinator {
                 }
             } catch {
                 guard let self, !Task.isCancelled else { return }
-                self.model.errorMessage = "Il server è andato a fumare 🚬 (\(error.localizedDescription))"
+                self.model.errorMessage = error.localizedDescription
             }
             guard let self, !Task.isCancelled else { return }
             self.model.roastFinished = true

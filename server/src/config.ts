@@ -1,7 +1,7 @@
 import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+if (!process.env.AIANDO_DESKTOP) dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 function num(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
