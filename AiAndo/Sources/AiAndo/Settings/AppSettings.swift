@@ -19,7 +19,7 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable {
     // Suggestions only. Any model ID from the selected provider can be entered.
     var models: [String] {
         switch self {
-        case .cursor: return ["auto", "sonnet-4.5", "gpt-5"]
+        case .cursor: return ["auto", "composer-2.5", "gpt-5.2"]
         case .anthropic: return ["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-6"]
         case .openai: return ["gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
         case .google: return ["gemini-2.5-flash", "gemini-2.5-pro"]
@@ -103,6 +103,10 @@ final class AppSettings {
         self.provider = provider
         self.model = model
         configured = provider.needsKey ? !key.isEmpty : CursorAgent.executable != nil
+    }
+    /// Called once the Cursor CLI is installed, so roasts stop falling back to the server.
+    func refreshCursor() {
+        if !provider.needsKey { configured = CursorAgent.executable != nil }
     }
     func configuration() throws -> AIConfiguration {
         if !provider.needsKey {

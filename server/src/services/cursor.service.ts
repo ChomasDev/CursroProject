@@ -46,6 +46,9 @@ export function cursorError(output: string): AndoError {
   if (/rate limit|usage limit|quota|too many requests/.test(text)) {
     return new AndoError("Cursor usage limit reached. Check your Cursor plan.", 429);
   }
+  if (/connection lost|writableiterable|econnreset|etimedout|network/.test(text)) {
+    return new AndoError("Cursor could not reach its servers. Check your connection and try again.", 503);
+  }
   if (/model/.test(text)) return new AndoError("Cursor rejected the model. Pick another one in Settings.", 400);
   return new AndoError("Cursor could not answer. Try again.", 502);
 }

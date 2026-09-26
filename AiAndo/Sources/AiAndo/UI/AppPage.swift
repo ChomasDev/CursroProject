@@ -83,47 +83,72 @@ struct AppPage: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Preview the roast using sample text")
 
-            HStack(alignment: .top, spacing: 28) {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("Cursor").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppPalette.muted)
-                    HStack(spacing: 7) {
-                        Circle().fill(installed ? AppPalette.purple : AppPalette.muted.opacity(0.5)).frame(width: 7, height: 7)
-                        Text(installed ? "Ready to heckle" : "Not connected yet")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                }
-                Spacer(minLength: 0)
-                Button { showingSettings = true } label: {
-                    VStack(alignment: .leading, spacing: 9) {
-                        Text("The brain").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppPalette.muted)
-                        HStack(spacing: 6) {
-                            Text(settings.provider == .cursor ? cursor.statusText : settings.configured ? settings.provider.name : "Bring your own API key")
-                                .font(.system(size: 14, weight: .semibold))
-                            Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .bold))
+            VStack(alignment: .leading, spacing: 12) {
+                Text(allReady ? "All set. Your next prompt is fair game." : "Three steps to get roasted")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.muted)
+                VStack(spacing: 0) {
+                    SetupStep(number: 1, title: "Hooks in Cursor",
+                              detail: installed ? "Installed. Restart Cursor if it was already open." : "Lets Ai-Ando see your prompts.",
+                              done: installed, busy: installing) {
+                        if installed {
+                            Button("Reinstall") { install() }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 12, weight: .semibold)).foregroundStyle(AppPalette.muted)
+                                .disabled(installing)
+                        } else {
+                            Button { install() } label: {
+                                Text(installing ? "Installing…" : "Install in Cursor")
+                            }
+                            .buttonStyle(RoastButtonStyle(compact: true)).disabled(installing)
                         }
-                        .foregroundStyle(AppPalette.purple)
+                    }
+                    StepDivider()
+                    SetupStep(number: 2, title: "The brain",
+                              detail: brainDetail, done: brainReady, busy: cursor.isBusy, enabled: installed) {
+                        if !brainReady {
+                            Button {
+                                if settings.provider == .cursor { Task { try? await cursor.connect() } }
+                                else { showingSettings = true }
+                            } label: {
+                                Text(cursor.isBusy ? "Working…" : settings.provider == .cursor ? "Connect Cursor" : "Add API key")
+                            }
+                            .buttonStyle(RoastButtonStyle(compact: true))
+                            .disabled(!installed || cursor.isBusy)
+                        }
+                    }
+                    if cursor.isBusy && settings.provider == .cursor { CursorProgress(state: cursor.state).padding(.horizontal, 20).padding(.bottom, 16) }
+                    StepDivider()
+                    SetupStep(number: 3, title: "Pick a model",
+                              detail: brainReady ? "\(settings.provider.name) · \(settings.model)" : "Choose who roasts you.",
+                              done: brainReady, enabled: brainReady) {
+                        Button { showingSettings = true } label: {
+                            HStack(spacing: 6) {
+                                Text(brainReady ? "Change model" : "Choose model")
+                                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
+                            }
+                        }
+                        .buttonStyle(RoastButtonStyle(compact: true, tint: brainReady ? AppPalette.purple : AppPalette.ink))
+                        .disabled(!brainReady)
                     }
                 }
-                .buttonStyle(.plain)
-            }
-            HStack(spacing: 16) {
-                Button { install() } label: {
-                    HStack(spacing: 12) {
-                        Text(installing ? "Installing…" : installed ? "Reinstall in Cursor" : "Install in Cursor")
-                        if installing { ProgressView().controlSize(.small).tint(.white) }
-                        else { Image(systemName: "arrow.down.to.line").fontWeight(.bold) }
-                    }
-                }
-                .buttonStyle(RoastButtonStyle())
-                .disabled(installing)
-                Text(installed ? "Your next prompt is fair game." : "One click.\nZero chill.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(AppPalette.muted)
+                .background(AppPalette.paper, in: RoundedRectangle(cornerRadius: 22))
             }
             Text(notice ?? (settings.provider == .cursor ? "No API key needed. Roasts run on your Cursor account." : "No key needed for the preview. Your real key stays in macOS Keychain."))
                 .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var brainReady: Bool {
+        settings.provider == .cursor ? cursor.state == .connected : settings.configured
+    }
+    private var allReady: Bool { installed && brainReady }
+    private var brainDetail: String {
+        guard settings.provider == .cursor else {
+            return settings.configured ? "\(settings.provider.name) API key saved." : "Add your \(settings.provider.name) API key."
+        }
+        if case .failed(let message) = cursor.state { return message }
+        return cursor.state == .connected ? "Connected to your Cursor account." : cursor.isBusy ? cursor.statusText : "Uses your Cursor plan. No API key."
     }
 
     private func install() {
@@ -133,9 +158,9 @@ struct AppPage: View {
             do {
                 try await Task.detached(priority: .userInitiated) { try CursorInstaller().install() }.value
                 installed = CursorInstaller().isInstalled
-                notice = "Installed in ~/Applications and connected to Cursor. Restart Cursor to load the hooks."
+                notice = "Hooks installed. Restart Cursor to load them."
                 installing = false
-                if settings.provider == .cursor { try await cursor.connect() }
+                if settings.provider == .cursor && cursor.state != .connected { try await cursor.connect() }
             } catch { notice = error.localizedDescription }
             installing = false
         }
@@ -152,7 +177,6 @@ private struct AISettingsPage: View {
     @State private var testing = false
     @State private var testTask: Task<Void, Never>?
     @State private var keyLoaded = false
-    @State private var connecting = false
     private var cursor: CursorConnection { .shared }
 
     var body: some View {
@@ -191,26 +215,9 @@ private struct AISettingsPage: View {
                 }
             }
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Model").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.muted)
-                        Spacer()
-                        Menu {
-                            ForEach(provider.models, id: \.self) { suggestion in
-                                Button(suggestion) { model = suggestion }
-                            }
-                        } label: {
-                            Text("Suggestions").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppPalette.purple)
-                        }
-                        .menuStyle(.borderlessButton).fixedSize()
-                    }
-                    TextField("Model ID", text: $model)
-                        .textFieldStyle(.plain).font(.system(size: 20, weight: .semibold))
-                        .accessibilityLabel("Model ID")
-                    Text("Pick a suggestion or paste a model ID.")
-                        .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
-                }
-                .padding(18)
+                ModelPicker(model: $model, options: modelOptions,
+                            loading: provider == .cursor && cursor.models.isEmpty && cursor.state == .connected)
+                    .padding(18)
                 Rectangle().fill(AppPalette.background).frame(height: 2).padding(.horizontal, 22)
                 if provider == .cursor { cursorAccount } else {
                 VStack(alignment: .leading, spacing: 10) {
@@ -258,16 +265,25 @@ private struct AISettingsPage: View {
             Text(notice ?? "Connection tests send a tiny request and may incur a small provider charge.")
                 .font(.system(size: 12)).foregroundStyle(AppPalette.muted).fixedSize(horizontal: false, vertical: true)
         }
-        .onAppear { loadKey() }
+        .onAppear {
+            loadKey()
+            if provider == .cursor { Task { await cursor.loadModels() } }
+        }
         .onChange(of: provider) {
             testTask?.cancel()
             testing = false
             model = AppSettings.shared.savedModel(for: provider)
+            if provider == .cursor { Task { await cursor.loadModels() } }
             revealed = false
             notice = nil
             loadKey()
         }
         .onDisappear { testTask?.cancel(); apiKey = "" }
+    }
+
+    private var modelOptions: [CursorModel] {
+        if provider == .cursor, !cursor.models.isEmpty { return cursor.models }
+        return provider.models.map { CursorModel(id: $0, name: $0) }
     }
 
     private var cursorAccount: some View {
@@ -278,17 +294,12 @@ private struct AISettingsPage: View {
                 Text(cursor.statusText).font(.system(size: 17, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                if cursor.state != .connected {
-                    Button { connect() } label: {
-                        HStack(spacing: 8) {
-                            if connecting { ProgressView().controlSize(.small) }
-                            Text("Connect Cursor")
-                        }
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(AppPalette.purple)
-                    }
-                    .buttonStyle(.plain).disabled(connecting)
+                if cursor.state != .connected && !cursor.isBusy {
+                    Button("Connect Cursor") { connect() }
+                        .buttonStyle(RoastButtonStyle(compact: true, tint: AppPalette.purple))
                 }
             }
+            if cursor.isBusy { CursorProgress(state: cursor.state) }
             Text("No API key. Ai-Ando installs the Cursor CLI and uses your Cursor plan. You only approve once in the browser.")
                 .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -297,11 +308,7 @@ private struct AISettingsPage: View {
     }
 
     private func connect() {
-        connecting = true
-        Task {
-            try? await cursor.connect()
-            connecting = false
-        }
+        Task { try? await cursor.connect() }
     }
 
     private func providerLetter(_ provider: AIProvider) -> String {
@@ -348,6 +355,87 @@ private struct AISettingsPage: View {
     }
 }
 
+/// Current model plus a searchable list of what the provider offers. Any ID can still be typed.
+private struct ModelPicker: View {
+    @Binding var model: String
+    let options: [CursorModel]
+    let loading: Bool
+    @State private var query = ""
+
+    private var matches: [CursorModel] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return options }
+        return options.filter { $0.id.lowercased().contains(q) || $0.name.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Model").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.muted)
+                Spacer()
+                if loading {
+                    HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Loading your models…") }
+                        .font(.system(size: 11.5)).foregroundStyle(AppPalette.muted)
+                }
+            }
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(AppPalette.muted)
+                TextField("Search \(options.count) models, or paste an ID", text: $query)
+                    .textFieldStyle(.plain).font(.system(size: 16, weight: .medium))
+                    .accessibilityLabel("Search models")
+                    .onSubmit {
+                        let typed = query.trimmingCharacters(in: .whitespaces)
+                        if let first = matches.first { model = first.id } else if !typed.isEmpty { model = typed }
+                    }
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(AppPalette.muted) }
+                        .buttonStyle(.plain).accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(AppPalette.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(matches, id: \.id) { option in
+                        Button { model = option.id } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.name).font(.system(size: 14, weight: .semibold))
+                                    if option.name != option.id {
+                                        Text(option.id).font(.system(size: 11, design: .monospaced)).foregroundStyle(AppPalette.muted)
+                                    }
+                                }
+                                Spacer()
+                                if option.id == model {
+                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(AppPalette.purple)
+                                }
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(option.id == model ? AppPalette.purple.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 10))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(option.id == model ? [.isSelected] : [])
+                    }
+                    let typed = query.trimmingCharacters(in: .whitespaces)
+                    if !typed.isEmpty && !matches.contains(where: { $0.id == typed }) {
+                        Button { model = typed } label: {
+                            Label("Use “\(typed)” as model ID", systemImage: "plus.circle")
+                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.purple)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(height: min(260, CGFloat(max(matches.count, 1)) * 48 + 8))
+            Text("Selected: \(model.isEmpty ? "none" : model)")
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(AppPalette.muted)
+        }
+    }
+}
+
 extension Notification.Name {
     static let openAISettings = Notification.Name("AiAndo.openSettings")
 }
@@ -362,13 +450,99 @@ private enum AppPalette {
 }
 
 private struct RoastButtonStyle: ButtonStyle {
+    var compact = false
+    var tint = AppPalette.ink
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .bold))
-            .padding(.horizontal, 23).padding(.vertical, 16)
+            .font(.system(size: compact ? 13 : 15, weight: .bold))
+            .padding(.horizontal, compact ? 16 : 23).padding(.vertical, compact ? 10 : 16)
             .foregroundStyle(AppPalette.paper)
-            .background(AppPalette.ink.opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.35), in: RoundedRectangle(cornerRadius: 14))
+            .background(tint.opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.25), in: RoundedRectangle(cornerRadius: compact ? 11 : 14))
+    }
+}
+
+/// One row of the home checklist: number (or check), title, status line, and its action.
+private struct SetupStep<Action: View>: View {
+    let number: Int
+    let title: String
+    let detail: String
+    let done: Bool
+    var busy = false
+    var enabled = true
+    @ViewBuilder let action: () -> Action
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(done ? AppPalette.purple : AppPalette.background)
+                if busy { ProgressView().controlSize(.small) }
+                else if done { Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(AppPalette.paper) }
+                else { Text("\(number)").font(.system(size: 14, weight: .heavy, design: .rounded)) }
+            }
+            .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 16, weight: .bold))
+                Text(detail).font(.system(size: 12.5)).foregroundStyle(AppPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            action()
+        }
+        .padding(.horizontal, 20).padding(.vertical, 16)
+        .opacity(enabled ? 1 : 0.45)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct StepDivider: View {
+    var body: some View { Rectangle().fill(AppPalette.background).frame(height: 2).padding(.horizontal, 20) }
+}
+
+/// Real progress for the Cursor CLI setup: which stage is running, a moving bar, and elapsed time.
+private struct CursorProgress: View {
+    let state: CursorConnection.State
+    @State private var started = Date()
+
+    private var stages: [(CursorConnection.State, String)] {
+        [(.checking, "Check account"), (.installing, "Install Cursor CLI"), (.signingIn, "Approve in browser")]
+    }
+    private var current: Int { stages.firstIndex { $0.0 == state } ?? 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
+                    HStack(spacing: 5) {
+                        Image(systemName: index < current ? "checkmark.circle.fill" : index == current ? "circle.dotted" : "circle")
+                            .symbolEffect(.pulse, isActive: index == current)
+                        Text(stage.1)
+                    }
+                    .font(.system(size: 12, weight: index == current ? .bold : .medium))
+                    .foregroundStyle(index <= current ? AppPalette.purple : AppPalette.muted.opacity(0.6))
+                    if index < stages.count - 1 {
+                        Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(AppPalette.muted.opacity(0.5))
+                    }
+                }
+            }
+            ProgressView().progressViewStyle(.linear).tint(AppPalette.purple)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(hint + " · \(Int(context.date.timeIntervalSince(started)))s")
+                    .font(.system(size: 11.5)).foregroundStyle(AppPalette.muted)
+                    .monospacedDigit()
+            }
+        }
+        .padding(14)
+        .background(AppPalette.background.opacity(0.55), in: RoundedRectangle(cornerRadius: 14))
+        .onChange(of: state) { started = Date() }
+    }
+
+    private var hint: String {
+        switch state {
+        case .installing: return "Downloading from cursor.com, usually under a minute"
+        case .signingIn: return "Click Continue on the Cursor page that just opened"
+        default: return "Talking to Cursor"
+        }
     }
 }
 

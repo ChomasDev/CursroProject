@@ -51,6 +51,7 @@ enum AIWorker {
                         "AIANDO_DESKTOP": "1",
                         "SYSTEM_PROMPT_PATH": resources.appendingPathComponent("ai-ando-system-prompt.md").path,
                         "AIANDO_DATA_FILE": dataFolder.appendingPathComponent("leaderboard.json").path,
+                        "CURSOR_CONFIG_DIR": CursorAgent.configFolder.path,
                     ]
                     let input = Pipe(), output = Pipe()
                     process.standardInput = input

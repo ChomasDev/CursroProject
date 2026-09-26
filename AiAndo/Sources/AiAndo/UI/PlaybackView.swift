@@ -8,9 +8,14 @@ struct PlaybackView: View {
 
     var body: some View {
         ZStack {
-            // Soft frosted halo behind the centered text (feathered edges), for legibility.
+            // Light dim over the whole screen, so the overlay reads as one layer, edge to edge.
+            Color.black.opacity(0.22)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            // Frosted blur over the whole screen: strongest behind the text, softer toward the edges, never cut off.
             SoftBlurHalo()
-                .frame(width: 1500, height: 760)
+                .ignoresSafeArea()
                 .opacity(player.current == nil && !player.showPlaceholder ? 0.6 : 1)
                 .animation(.easeInOut(duration: 1.0), value: player.current == nil)
                 .allowsHitTesting(false)
@@ -200,7 +205,8 @@ private struct ActivityLine: View {
     }
 }
 
-/// Behind-window blur with a radial, feathered alpha mask (no hard edges).
+/// Full-screen behind-window blur with a radial alpha mask: an ellipse stretched to the screen,
+/// so it fades continuously and has no visible edge anywhere.
 private struct SoftBlurHalo: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let v = NSVisualEffectView()
@@ -215,14 +221,17 @@ private struct SoftBlurHalo: NSViewRepresentable {
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 
     static let mask: NSImage = {
-        let size = NSSize(width: 400, height: 200)
+        let size = NSSize(width: 256, height: 256)
         let image = NSImage(size: size, flipped: false) { rect in
             let g = NSGradient(colorsAndLocations:
                 (NSColor.black, 0.0),
-                (NSColor.black.withAlphaComponent(0.92), 0.35),
-                (NSColor.black.withAlphaComponent(0.45), 0.7),
-                (NSColor.black.withAlphaComponent(0.0), 1.0))
-            g?.draw(in: NSBezierPath(rect: rect), relativeCenterPosition: .zero)
+                (NSColor.black.withAlphaComponent(0.85), 0.4),
+                (NSColor.black.withAlphaComponent(0.45), 0.75),
+                (NSColor.black.withAlphaComponent(0.2), 1.0))
+            let center = NSPoint(x: rect.midX, y: rect.midY)
+            // Ends at the edge midpoints; the corners keep the last (light) alpha, so nothing is clipped.
+            g?.draw(fromCenter: center, radius: 0, toCenter: center, radius: rect.width / 2,
+                    options: [.drawsAfterEndingLocation])
             return true
         }
         image.resizingMode = .stretch
