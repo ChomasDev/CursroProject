@@ -10,6 +10,7 @@ struct LocalAIRoastService: RoastService {
                     if await !AppSettings.shared.configured, let url = RoastServiceFactory.configuredURL() {
                         stream = WebSocketRoastService(url: url).roast(request)
                     } else {
+                        if await AppSettings.shared.provider == .cursor { try await CursorConnection.shared.connect() }
                         let configuration = try await AppSettings.shared.configuration()
                         stream = AIWorker.run(configuration: configuration, prompt: request.prompt, user: request.user)
                     }

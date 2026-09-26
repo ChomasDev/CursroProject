@@ -9,6 +9,7 @@ struct AppPage: View {
     @State private var installing = false
     @State private var notice: String?
     private var settings: AppSettings { .shared }
+    private var cursor: CursorConnection { .shared }
 
     var body: some View {
         ScrollView {
@@ -96,7 +97,7 @@ struct AppPage: View {
                     VStack(alignment: .leading, spacing: 9) {
                         Text("The brain").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppPalette.muted)
                         HStack(spacing: 6) {
-                            Text(settings.configured ? settings.provider.name : "Bring your own API key")
+                            Text(settings.provider == .cursor ? cursor.statusText : settings.configured ? settings.provider.name : "Bring your own API key")
                                 .font(.system(size: 14, weight: .semibold))
                             Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .bold))
                         }
@@ -119,7 +120,7 @@ struct AppPage: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(AppPalette.muted)
             }
-            Text(notice ?? "No key needed for the preview. Your real key stays in macOS Keychain.")
+            Text(notice ?? (settings.provider == .cursor ? "No API key needed. Roasts run on your Cursor account." : "No key needed for the preview. Your real key stays in macOS Keychain."))
                 .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -133,6 +134,8 @@ struct AppPage: View {
                 try await Task.detached(priority: .userInitiated) { try CursorInstaller().install() }.value
                 installed = CursorInstaller().isInstalled
                 notice = "Installed in ~/Applications and connected to Cursor. Restart Cursor to load the hooks."
+                installing = false
+                if settings.provider == .cursor { try await cursor.connect() }
             } catch { notice = error.localizedDescription }
             installing = false
         }
@@ -149,6 +152,8 @@ private struct AISettingsPage: View {
     @State private var testing = false
     @State private var testTask: Task<Void, Never>?
     @State private var keyLoaded = false
+    @State private var connecting = false
+    private var cursor: CursorConnection { .shared }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -207,6 +212,7 @@ private struct AISettingsPage: View {
                 }
                 .padding(18)
                 Rectangle().fill(AppPalette.background).frame(height: 2).padding(.horizontal, 22)
+                if provider == .cursor { cursorAccount } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("API key").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.muted)
@@ -231,6 +237,7 @@ private struct AISettingsPage: View {
                         .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
                 }
                 .padding(18)
+                }
             }
             .background(AppPalette.paper, in: RoundedRectangle(cornerRadius: 22))
             HStack(spacing: 20) {
@@ -246,7 +253,7 @@ private struct AISettingsPage: View {
                     .font(.system(size: 14, weight: .semibold))
                 }
                 .buttonStyle(.plain)
-                .disabled(testing || !keyLoaded || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(testing || !keyLoaded || (provider.needsKey && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Text(notice ?? "Connection tests send a tiny request and may incur a small provider charge.")
                 .font(.system(size: 12)).foregroundStyle(AppPalette.muted).fixedSize(horizontal: false, vertical: true)
@@ -263,8 +270,43 @@ private struct AISettingsPage: View {
         .onDisappear { testTask?.cancel(); apiKey = "" }
     }
 
+    private var cursorAccount: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Cursor account").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppPalette.muted)
+            HStack(spacing: 12) {
+                Circle().fill(cursor.state == .connected ? AppPalette.purple : AppPalette.muted.opacity(0.5)).frame(width: 8, height: 8)
+                Text(cursor.statusText).font(.system(size: 17, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                if cursor.state != .connected {
+                    Button { connect() } label: {
+                        HStack(spacing: 8) {
+                            if connecting { ProgressView().controlSize(.small) }
+                            Text("Connect Cursor")
+                        }
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(AppPalette.purple)
+                    }
+                    .buttonStyle(.plain).disabled(connecting)
+                }
+            }
+            Text("No API key. Ai-Ando installs the Cursor CLI and uses your Cursor plan. You only approve once in the browser.")
+                .font(.system(size: 12)).foregroundStyle(AppPalette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+    }
+
+    private func connect() {
+        connecting = true
+        Task {
+            try? await cursor.connect()
+            connecting = false
+        }
+    }
+
     private func providerLetter(_ provider: AIProvider) -> String {
         switch provider {
+        case .cursor: return "C"
         case .anthropic: return "A"
         case .openai: return "O"
         case .google: return "G"
@@ -273,21 +315,27 @@ private struct AISettingsPage: View {
     }
 
     private func loadKey() {
+        guard provider.needsKey else { apiKey = ""; keyLoaded = true; return }
         do { apiKey = try APIKeyStore.read(provider); keyLoaded = true }
         catch { apiKey = ""; keyLoaded = false; notice = error.localizedDescription }
     }
     private func save() {
         do {
             try AppSettings.shared.save(provider: provider, model: model, key: apiKey)
-            notice = apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "API key removed. Add a key to enable roasts." : "Settings saved. Your next roast will use this model."
+            notice = !provider.needsKey ? "Settings saved. Roasts now run on your Cursor account."
+                : apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "API key removed. Add a key to enable roasts." : "Settings saved. Your next roast will use this model."
         } catch { notice = error.localizedDescription }
     }
     private func test() {
         testing = true
         notice = nil
-        let configuration = AIConfiguration(provider: provider.rawValue, model: model.trimmingCharacters(in: .whitespacesAndNewlines), apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
+        let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = provider
         testTask = Task {
             do {
+                var configuration = AIConfiguration(provider: provider.rawValue, model: model, apiKey: apiKey)
+                if !provider.needsKey { configuration.agentPath = try await cursor.connect().path }
                 try await AIWorker.test(configuration)
                 guard !Task.isCancelled else { return }
                 notice = "Connected. Save settings to use this model."

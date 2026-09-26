@@ -6,6 +6,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { config } from "../config";
 import { AndoError } from "../errors";
 import { extractJson } from "./json";
+import { cursorComplete } from "./cursor.service";
 
 export type AndoRoast = {
   roast_mode: boolean;
@@ -30,9 +31,11 @@ const FIELDS = [
 ] as const;
 
 export type AISettings = {
-  provider: "anthropic" | "openai" | "google" | "openrouter";
+  provider: "cursor" | "anthropic" | "openai" | "google" | "openrouter";
   model: string;
   apiKey: string;
+  /** Cursor CLI binary; the Cursor provider uses the user's Cursor login instead of an API key. */
+  agentPath?: string;
 };
 
 export function defaultAISettings(): AISettings {
@@ -45,7 +48,7 @@ export async function writeRoast(
   signal?: AbortSignal,
   settings: AISettings = defaultAISettings(),
 ): Promise<AndoRoast> {
-  if (!settings.apiKey.trim()) {
+  if (settings.provider !== "cursor" && !settings.apiKey.trim()) {
     throw new AndoError("Add your API key in Settings.", 500);
   }
   const first = await complete(system, user, settings, signal);
@@ -75,6 +78,10 @@ export function languageModel(settings: AISettings) {
 }
 
 async function complete(system: string, user: string, settings: AISettings, signal?: AbortSignal): Promise<string> {
+  if (settings.provider === "cursor") {
+    if (!settings.agentPath) throw new AndoError("Open Ai-Ando and click Connect Cursor.", 500);
+    return cursorComplete(settings.agentPath, settings.model, system, user, signal);
+  }
   try {
     const { text } = await generateText({
       model: languageModel(settings),

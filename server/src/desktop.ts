@@ -2,6 +2,7 @@
 import { generateText } from "ai";
 import { languageModel, type AISettings } from "./services/ai.service";
 import { finishRoast, prepareTurn } from "./services/ando.service";
+import { cursorComplete } from "./services/cursor.service";
 
 function send(value: unknown) { process.stdout.write(`${JSON.stringify(value)}\n`); }
 
@@ -13,9 +14,15 @@ async function main() {
   }
   const body = JSON.parse(raw) as { operation?: string; prompt?: string; user?: string; ai?: AISettings };
   const ai = body.ai;
-  if (!ai || !["anthropic", "openai", "google", "openrouter"].includes(ai.provider)
-    || typeof ai.apiKey !== "string" || !ai.apiKey.trim()
+  const cursor = ai?.provider === "cursor";
+  if (!ai || !["cursor", "anthropic", "openai", "google", "openrouter"].includes(ai.provider)
+    || (cursor ? typeof ai.agentPath !== "string" || !ai.agentPath : typeof ai.apiKey !== "string" || !ai.apiKey.trim())
     || typeof ai.model !== "string" || !ai.model.trim()) throw new Error("Choose a provider, model, and API key in Settings.");
+  if (body.operation === "test" && cursor) {
+    await cursorComplete(ai.agentPath!, ai.model, "Reply with OK.", "", undefined, 60_000);
+    send({ type: "done" });
+    return;
+  }
   if (body.operation === "test") {
     try {
       await generateText({ model: languageModel(ai), prompt: "Reply with OK.", maxOutputTokens: 128,

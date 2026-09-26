@@ -16,7 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator = Coordinator(model: model, panel: panel, source: EventLogWatcher(), service: RoastServiceFactory.make())
         coordinator?.start()
         if CommandLine.arguments.contains("--demo") { showPreview() }
-        else if !CommandLine.arguments.contains("--background") { showApp() }
+        else if !CommandLine.arguments.contains("--background") {
+            showApp()
+            // First visible launch sets up Cursor by itself; the user only approves in the browser.
+            if AppSettings.shared.provider == .cursor { Task { try? await CursorConnection.shared.connect() } }
+        }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showApp()

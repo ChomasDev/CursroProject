@@ -3,10 +3,13 @@ import Observation
 import Security
 
 enum AIProvider: String, CaseIterable, Identifiable, Codable {
-    case anthropic, openai, google, openrouter
+    case cursor, anthropic, openai, google, openrouter
     var id: String { rawValue }
+    /// Cursor uses the signed-in Cursor CLI instead of an API key.
+    var needsKey: Bool { self != .cursor }
     var name: String {
         switch self {
+        case .cursor: return "Cursor"
         case .anthropic: return "Anthropic"
         case .openai: return "OpenAI"
         case .google: return "Google"
@@ -16,6 +19,7 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable {
     // Suggestions only. Any model ID from the selected provider can be entered.
     var models: [String] {
         switch self {
+        case .cursor: return ["auto", "sonnet-4.5", "gpt-5"]
         case .anthropic: return ["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-6"]
         case .openai: return ["gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
         case .google: return ["gemini-2.5-flash", "gemini-2.5-pro"]
@@ -28,6 +32,7 @@ struct AIConfiguration: Codable, Sendable {
     let provider: String
     let model: String
     let apiKey: String
+    var agentPath: String? = nil
 }
 
 enum APIKeyStore {
@@ -78,11 +83,11 @@ final class AppSettings {
     private(set) var configured: Bool
 
     init() {
-        let chosen = AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "") ?? .anthropic
+        let chosen = AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "") ?? .cursor
         provider = chosen
         model = UserDefaults.standard.string(forKey: "aiModel.\(chosen.rawValue)") ?? chosen.models[0]
         // Keychain is only opened when the user opens Settings or makes a request.
-        configured = UserDefaults.standard.bool(forKey: "aiConfigured.\(chosen.rawValue)")
+        configured = chosen.needsKey ? UserDefaults.standard.bool(forKey: "aiConfigured.\(chosen.rawValue)") : CursorAgent.executable != nil
     }
     func savedModel(for provider: AIProvider) -> String {
         defaults.string(forKey: "aiModel.\(provider.rawValue)") ?? provider.models[0]
@@ -91,15 +96,20 @@ final class AppSettings {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !model.isEmpty else { throw RoastServiceError.server("Enter a model ID.") }
-        try APIKeyStore.save(key, for: provider)
+        if provider.needsKey { try APIKeyStore.save(key, for: provider) }
         defaults.set(provider.rawValue, forKey: "aiProvider")
         defaults.set(model, forKey: "aiModel.\(provider.rawValue)")
         defaults.set(!key.isEmpty, forKey: "aiConfigured.\(provider.rawValue)")
         self.provider = provider
         self.model = model
-        configured = !key.isEmpty
+        configured = provider.needsKey ? !key.isEmpty : CursorAgent.executable != nil
     }
     func configuration() throws -> AIConfiguration {
+        if !provider.needsKey {
+            guard let agent = CursorAgent.executable else { throw RoastServiceError.server("Click Connect Cursor in Ai-Ando to start.") }
+            configured = true
+            return AIConfiguration(provider: provider.rawValue, model: model, apiKey: "", agentPath: agent.path)
+        }
         let key = try APIKeyStore.read(provider)
         guard !key.isEmpty else { throw RoastServiceError.server("Add your API key in Settings to start.") }
         return AIConfiguration(provider: provider.rawValue, model: model, apiKey: key)
