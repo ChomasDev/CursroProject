@@ -2,29 +2,36 @@
 
 A macOS app that roasts your prompts while Cursor works. One home page, provider settings, and the original large-text overlay. Requires macOS 14 or newer.
 
-## Quick install (one command)
+## Install and start (one command)
 
 Open **Terminal** (press `Cmd + Space`, type "Terminal", press Enter), paste this line, and press Enter:
 
 ```sh
-[ -d ~/.aiando/src ] || git clone https://github.com/ChomasDev/CursroProject.git ~/.aiando/src; ~/.aiando/src/install.sh
+curl -fsSL https://raw.githubusercontent.com/ChomasDev/CursroProject/main/install.sh | bash
 ```
 
-The script does everything for you:
+That's it. The command installs Ai-Ando, opens it, and connects it to Cursor. **Then open Cursor, write your first prompt, and watch it get roasted.** 💀
+
+The first time, two things may pop up:
+
+- **A browser page from Cursor:** click to approve Ai-Ando. It uses your Cursor plan, so no API key is needed. You only do this once.
+- **"Restart Cursor now?"** in Terminal: press Enter. Cursor needs one restart to load Ai-Ando.
+
+Close a roast with Escape, Command-L, or its close button. Ai-Ando lives in the menu bar (the 💀); click it to open the app, pick a different model, or preview a roast.
+
+**To update**, run the same command again.
+
+<details>
+<summary>What the command does</summary>
 
 1. Checks you have Apple's command-line tools. If not, a macOS window opens to install them: accept, wait, then run the command again.
 2. Uses your Node.js 22+ if you have it. Otherwise it downloads a private copy from nodejs.org, checksum-verified, without touching your system.
-3. Downloads Ai-Ando into `~/.aiando/src`.
-4. Builds the app and installs it in `~/Applications`.
-5. Opens Ai-Ando, connects it to Cursor, and sets up the Cursor CLI. No API key needed.
+3. Downloads the Ai-Ando source into `~/.aiando/src`.
+4. Builds the app on your Mac and installs it in `~/Applications` (build log: `~/.aiando/build.log`).
+5. Opens Ai-Ando, installs its Cursor hooks (keeping a backup of your `~/.cursor/hooks.json`), sets up the Cursor CLI, and offers to restart Cursor.
 
-Then there are only three things left for you to do:
-
-1. **Approve in the browser:** Cursor opens a page; click to approve Ai-Ando. You only do this once.
-2. **Restart Cursor.**
-3. **Send any prompt in Cursor.** The roast appears on screen. Close it with Escape, Command-L, or its close button.
-
-**To update**, run the same command again. The repository is private, so your GitHub account needs access to it. If Git asks you to sign in, use your GitHub account.
+You can read [install.sh](install.sh) before running it.
+</details>
 
 ## Manual install (step by step)
 
@@ -49,7 +56,7 @@ Requirements: macOS 14 or newer, Apple's command-line tools (`xcode-select --ins
 
 ## Using Cursor as the AI
 
-Roasts run through `agent -p` on the user's own Cursor plan, so they count toward that plan's usage. Each call runs in an empty temporary folder without `--force`, so the agent cannot touch your projects. If sign-in is missing or expires, the next roast starts it again, and **Settings → Cursor account → Connect Cursor** does the same by hand. The model defaults to `auto`; you can enter any model listed by `agent models`. Expect a few extra seconds per roast compared with a direct API call.
+Roasts run through `agent -p` on the user's own Cursor plan, so they count toward that plan's usage. Each call runs in an empty temporary folder without `--force`, so the agent cannot touch your projects. If sign-in is missing or expires, the next roast starts it again, and **Settings → Cursor account → Connect Cursor** does the same by hand. The model defaults to `auto`; **Settings → Model** lists every model your Cursor account can use, with search. Ai-Ando uses its own Cursor CLI config (`~/Library/Application Support/AiAndo/cursor-cli`) with HTTP/1 enabled, because the CLI's default HTTP/2 connection drops on many networks; your own `~/.cursor/cli-config.json` is not changed. Expect a few extra seconds per roast compared with a direct API call.
 
 ## Using your own API key (optional)
 

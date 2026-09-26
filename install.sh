@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-command install: downloads Ai-Ando, builds it, installs it in ~/Applications,
 # connects it to Cursor, and opens it. Safe to run again to update.
+#   curl -fsSL https://raw.githubusercontent.com/ChomasDev/CursroProject/main/install.sh | bash
 set -euo pipefail
 
 REPO="https://github.com/ChomasDev/CursroProject.git"
@@ -9,6 +10,8 @@ TOOLS="$HOME/.aiando/tools"
 step() { printf '\n\033[1;35m==>\033[0m \033[1m%s\033[0m\n' "$1"; }
 fail() { printf '\n\033[1;31mError:\033[0m %s\n' "$1" >&2; exit 1; }
 
+# Everything runs inside main, so a partly downloaded script never runs half-way.
+main() {
 [ "$(uname -s)" = "Darwin" ] || fail "Ai-Ando runs on macOS only."
 [ "$(sw_vers -productVersion | cut -d. -f1)" -ge 14 ] || fail "Ai-Ando needs macOS 14 or newer."
 
@@ -39,26 +42,44 @@ fi
 
 step "3/5 Downloading Ai-Ando"
 if [ -d "$SRC/.git" ]; then
-  git -C "$SRC" pull --ff-only --quiet
+  git -C "$SRC" pull --ff-only --quiet </dev/null
 else
   mkdir -p "$(dirname "$SRC")"
-  git clone --quiet "$REPO" "$SRC" || fail "Could not download Ai-Ando. Make sure your GitHub account has access to the repository."
+  git clone --quiet "$REPO" "$SRC" </dev/null || fail "Could not download Ai-Ando. Check your internet connection."
 fi
 
 step "4/5 Building and installing (takes a minute or two)"
 mkdir -p "$HOME/.aiando"
 pkill -x AiAndo 2>/dev/null || true
-"$SRC/AiAndo/scripts/build-app.sh" --install >"$HOME/.aiando/build.log" 2>&1 \
+"$SRC/AiAndo/scripts/build-app.sh" --install </dev/null >"$HOME/.aiando/build.log" 2>&1 \
   || fail "Build failed. Details: $HOME/.aiando/build.log"
 
 step "5/5 Opening Ai-Ando"
 open "$HOME/Applications/AiAndo.app" --args --setup
-cat <<'DONE'
 
-Done! Last steps:
-  1. Your browser opens Cursor: click to approve Ai-Ando (one time only).
-  2. Restart Cursor.
-  3. Send any prompt in Cursor and enjoy the roast.
+# Cursor loads hooks at launch, so a running Cursor must restart once.
+restarted=""
+if pgrep -xq Cursor; then
+  answer="n"
+  if [ -r /dev/tty ]; then
+    printf '\nCursor is open and must restart once to load Ai-Ando. Restart it now? [Y/n] '
+    read -r answer </dev/tty || answer="n"; answer="${answer:-y}"
+  fi
+  case "$answer" in
+    [nN]*) ;;
+    *) osascript -e 'quit app "Cursor"' >/dev/null 2>&1 || true
+       for _ in $(seq 1 30); do pgrep -xq Cursor || break; sleep 1; done
+       if pgrep -xq Cursor; then echo "Cursor is still closing; restart it yourself when it's done."
+       else open -a Cursor; restarted="yes"; fi ;;
+  esac
+fi
 
-Run the same command again any time to update.
-DONE
+printf '\n\033[1;32mDone!\033[0m Last steps:\n'
+echo "  1. If your browser opens a Cursor page, click to approve Ai-Ando (one time only)."
+[ -n "$restarted" ] || echo "  2. Restart Cursor (Cmd+Q, then open it again)."
+echo "  $([ -n "$restarted" ] && echo 2 || echo 3). Send any prompt in Cursor and enjoy the roast."
+echo
+echo "Run the same command again any time to update."
+}
+
+main "$@"
